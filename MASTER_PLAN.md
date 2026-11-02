@@ -1,6 +1,6 @@
 ﻿# App Internet Control — Master Project Plan
 
-**Status:** Features 1–9 are implemented as prototypes; physical-device VPN, alarm, live-speed, and usage-statistics validation is still pending.
+**Status:** Features 1–10 are implemented as prototypes. Phase 11 has partial results from one realme Android 15/API 35 device; actual traffic filtering, reliable background alarm timing, usage statistics, and the approved API 29/34/37 device matrix remain unverified.
 **Authoritative requirements:** This document is the single source of truth for product requirements, technical decisions, risks, and acceptance criteria. Update it when requirements or validated platform behavior changes.
 **Repository:** [itsmebillah/app-internet-control](https://github.com/itsmebillah/app-internet-control)
 
@@ -283,6 +283,10 @@ These questions remain open and must be resolved with evidence; difficult featur
 - Android background and alarm delivery is conditional; perfect schedule timing cannot be promised without qualifying constraints and device testing.
 - Notifications and foreground execution have version-dependent permission and policy requirements.
 - Cloud backup cannot restore Android system grants such as VPN consent or special access; each device must authorize those locally.
+
+### Phase 11 device observations (2026-11-03)
+
+On one authorized realme RMX3834 running Android 15/API 35, the debug app launched, the launchable-app list showed names and icons, and the VPN foreground service started for selected Brave and stopped when its selection was cleared. These observations verify service lifecycle only; they do not verify that app traffic was blocked or that unselected traffic remained available. A foreground one-time schedule end was observed 56 seconds late. With the app in the background, the end boundary remained pending and the VPN service remained active more than 54 seconds after the configured end; foreground reconciliation then stopped it. Treat background schedule timing as a known limitation requiring follow-up. The focus screen also continued to display a stale “VPN is not active” status after the VPN service had started. See `DEVELOPMENT_PLAN.md` for the partial checklist and remaining device tests.
 
 ## 12. Acceptance Criteria
 

@@ -39,9 +39,9 @@ object ScheduleCoordinator {
         )
         recordEffectiveTransitions(appContext, now, effectivePackages, schedules, temporaryBlocks)
         val runtimeStore = ScheduleRuntimeStore(appContext)
-        if (effectivePackages.isEmpty()) {
+        if (VpnServiceLifecyclePolicy.shouldStop(effectivePackages)) {
             if (AppBlockingVpnService.isVpnActive) {
-                appContext.stopService(Intent(appContext, AppBlockingVpnService::class.java))
+                AppBlockingVpnService.requestStop(appContext)
             }
             runtimeStore.status = ScheduleRuntimeStore.STATUS_NO_CURRENT_BLOCK
             notifyStatusChanged(appContext)

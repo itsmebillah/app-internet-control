@@ -78,6 +78,12 @@ On Windows, from the repository root:
 
 The Gradle Wrapper downloads the pinned Gradle distribution on first use and verifies its SHA-256. The debug build output is under `app\build\outputs\apk\debug`; no release APK or signing setup is included.
 
+## Phase 11 physical-device status
+
+A partial smoke test was performed on an authorized realme RMX3834 running Android 15/API 35. The debug app launched, the installed-app list showed app names/icons, the VPN service started/stopped with Brave selection, and the live-speed foreground notification appeared and was stopped. These observations do not verify that selected-app traffic is blocked.
+
+The one-time schedule ended 56 seconds after its foreground boundary in one run. In a background run it remained active more than 54 seconds after expiry until foreground reconciliation. Actual network filtering, Usage Access/statistics, temporary-block expiry, profile behavior, and the approved API 29/34/37 device matrix remain unverified. See [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for the checklist and open device issue. Supabase remains **Not configured**.
+
 ## Project documents
 
 - [Master plan](MASTER_PLAN.md) — requirements, approved platform levels, risks, and acceptance criteria.

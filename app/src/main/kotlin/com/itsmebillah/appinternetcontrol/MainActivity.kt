@@ -2,6 +2,7 @@
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -13,6 +14,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
@@ -26,7 +28,6 @@ class MainActivity : Activity() {
     private val selectionStore by lazy { AppSelectionStore(this) }
     private lateinit var statusView: TextView
     private lateinit var enableButton: Button
-    private lateinit var schedulesButton: Button
     private lateinit var searchField: EditText
     private lateinit var appRows: LinearLayout
     private var installedApps: List<InstalledApp> = emptyList()
@@ -110,6 +111,26 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(16), dp(20), dp(16))
         }
+        content.setOnApplyWindowInsetsListener { view, insets ->
+            val navigationBarInsets = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                insets.getInsets(WindowInsets.Type.navigationBars())
+            } else {
+                @Suppress("DEPRECATION")
+                android.graphics.Insets.of(
+                    insets.systemWindowInsetLeft,
+                    0,
+                    insets.systemWindowInsetRight,
+                    insets.systemWindowInsetBottom,
+                )
+            }
+            view.setPadding(
+                dp(20) + navigationBarInsets.left,
+                dp(16),
+                dp(20) + navigationBarInsets.right,
+                dp(16) + navigationBarInsets.bottom,
+            )
+            insets
+        }
         content.addView(TextView(this).apply {
             text = getString(R.string.app_name)
             textSize = 24f
@@ -145,42 +166,9 @@ class MainActivity : Activity() {
         }
         content.addView(enableButton)
 
-        schedulesButton = Button(this).apply {
-            text = getString(R.string.manage_schedules)
-            setOnClickListener { startActivity(Intent(this@MainActivity, ScheduleActivity::class.java)) }
-        }
-        content.addView(schedulesButton)
         content.addView(Button(this).apply {
-            text = getString(R.string.temporary_blocks)
-            setOnClickListener { startActivity(Intent(this@MainActivity, TemporaryBlockActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = getString(R.string.focus_modes)
-            setOnClickListener { startActivity(Intent(this@MainActivity, FocusModeActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = getString(R.string.user_profiles)
-            setOnClickListener { startActivity(Intent(this@MainActivity, UserProfileActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = getString(R.string.history_title)
-            setOnClickListener { startActivity(Intent(this@MainActivity, ChangeHistoryActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = getString(R.string.speed_title)
-            setOnClickListener { startActivity(Intent(this@MainActivity, SpeedActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = getString(R.string.usage_title)
-            setOnClickListener { startActivity(Intent(this@MainActivity, UsageHistoryActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = getString(R.string.analytics_title)
-            setOnClickListener { startActivity(Intent(this@MainActivity, UsageAnalyticsActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = "Account and backup"
-            setOnClickListener { startActivity(Intent(this@MainActivity, AccountActivity::class.java)) }
+            text = getString(R.string.more_features)
+            setOnClickListener { showFeatureMenu() }
         })
 
         val scrollView = ScrollView(this)
@@ -191,6 +179,26 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f),
         )
         return content
+    }
+
+    private fun showFeatureMenu() {
+        val destinations = listOf(
+            getString(R.string.manage_schedules) to ScheduleActivity::class.java,
+            getString(R.string.temporary_blocks) to TemporaryBlockActivity::class.java,
+            getString(R.string.focus_modes) to FocusModeActivity::class.java,
+            getString(R.string.user_profiles) to UserProfileActivity::class.java,
+            getString(R.string.history_title) to ChangeHistoryActivity::class.java,
+            getString(R.string.speed_title) to SpeedActivity::class.java,
+            getString(R.string.usage_title) to UsageHistoryActivity::class.java,
+            getString(R.string.analytics_title) to UsageAnalyticsActivity::class.java,
+            "Account and backup" to AccountActivity::class.java,
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.more_features)
+            .setItems(destinations.map { it.first }.toTypedArray()) { _, index ->
+                startActivity(Intent(this, destinations[index].second))
+            }
+            .show()
     }
 
     private fun loadInstalledApps() {
@@ -299,8 +307,8 @@ class MainActivity : Activity() {
         ScheduleCoordinator.captureManualChange(this, app.packageName, shouldBlock)
         renderStatus()
 
-        if (ScheduleCoordinator.effectiveBlockedPackages(this).isEmpty()) {
-            stopService(Intent(this, AppBlockingVpnService::class.java))
+        if (VpnServiceLifecyclePolicy.shouldStop(ScheduleCoordinator.effectiveBlockedPackages(this))) {
+            AppBlockingVpnService.requestStop(this)
         } else {
             beginEnableFlow()
         }

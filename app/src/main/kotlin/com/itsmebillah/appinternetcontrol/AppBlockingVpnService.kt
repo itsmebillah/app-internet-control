@@ -178,6 +178,20 @@ class AppBlockingVpnService : VpnService() {
         var activePackageNames: Set<String> = emptySet()
             private set
 
+        fun requestStop(context: android.content.Context) {
+            val stopIntent = Intent(context, AppBlockingVpnService::class.java).setAction(ACTION_STOP)
+            if (!isVpnActive) {
+                context.stopService(stopIntent)
+                return
+            }
+            try {
+                context.startService(stopIntent)
+            } catch (_: RuntimeException) {
+                // Keep the safe fallback if Android disallows starting the existing service.
+                context.stopService(stopIntent)
+            }
+        }
+
         private const val CHANNEL_ID = "app_blocking_vpn"
         private const val NOTIFICATION_ID = 41
         private const val VPN_MTU = 1500

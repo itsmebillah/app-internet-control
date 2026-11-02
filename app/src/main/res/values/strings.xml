@@ -6,6 +6,7 @@
     <string name="vpn_notification_active">Prototype VPN active; filtering is not device-verified.</string>
     <string name="prototype_warning">Prototype: VPN packet filtering has not been verified on a physical device. A selected app may not be fully blocked.</string>
     <string name="search_apps">Search apps</string>
+    <string name="more_features">More features</string>
     <string name="no_apps_found">No launchable apps found.</string>
     <string name="app_icon_accessibility">Icon for %1$s</string>
     <string name="block_app_accessibility">Select %1$s for internet blocking</string>
