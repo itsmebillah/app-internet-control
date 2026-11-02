@@ -1,5 +1,7 @@
 ﻿# Development Plan
 
+`MASTER_PLAN.md` is the authoritative source for product requirements, technical decisions, risks, and acceptance criteria. Read it before implementing features.
+
 ## Stage 1 — Environment and project setup
 
 - Confirm the supported Android versions and development toolchain.
