@@ -14,6 +14,7 @@ object ScheduleCoordinator {
         EffectiveBlockResolver.resolve(
             manualBlockedPackages = AppSelectionStore(context).read().packageNames,
             activeFocusMode = FocusModeStore(context).activeMode(),
+            activeProfile = UserProfileStore(context).activeProfile(),
             schedules = BlockScheduleStore(context).read(),
             temporaryBlocks = TemporaryBlockStore(context).expire(now),
             now = now,
@@ -30,6 +31,7 @@ object ScheduleCoordinator {
         val effectivePackages = EffectiveBlockResolver.resolve(
             manualBlockedPackages = AppSelectionStore(appContext).read().packageNames,
             activeFocusMode = FocusModeStore(appContext).activeMode(),
+            activeProfile = UserProfileStore(appContext).activeProfile(),
             schedules = schedules,
             temporaryBlocks = temporaryBlocks,
             now = now,

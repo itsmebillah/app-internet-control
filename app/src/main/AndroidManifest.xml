@@ -42,6 +42,9 @@
         <activity
             android:name=".FocusModeActivity"
             android:exported="false" />
+        <activity
+            android:name=".UserProfileActivity"
+            android:exported="false" />
         <receiver
             android:name=".ScheduleAlarmReceiver"
             android:exported="false" />

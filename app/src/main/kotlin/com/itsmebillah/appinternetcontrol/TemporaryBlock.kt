@@ -34,14 +34,22 @@ object EffectiveBlockResolver {
     fun resolve(
         manualBlockedPackages: Set<String>,
         activeFocusMode: FocusMode? = null,
+        activeProfile: UserProfile? = null,
         schedules: List<BlockSchedule>,
         temporaryBlocks: List<TemporaryBlock>,
         now: Instant,
         zone: ZoneId,
-    ): Set<String> = ScheduleEvaluator.effectiveBlockedPackages(
-        manualBlockedPackages = manualBlockedPackages + activeFocusMode?.packageNames.orEmpty(),
-        schedules = schedules,
-        now = now,
-        zone = zone,
-    ) + TemporaryBlockEvaluator.activePackageNames(temporaryBlocks, now)
+    ): Set<String> {
+        val lowerPriorityBlocks = (manualBlockedPackages + activeFocusMode?.packageNames.orEmpty()).toMutableSet()
+        activeProfile?.let { profile ->
+            lowerPriorityBlocks.addAll(profile.blockedPackageNames)
+            lowerPriorityBlocks.removeAll(profile.allowedPackageNames)
+        }
+        return ScheduleEvaluator.effectiveBlockedPackages(
+            manualBlockedPackages = lowerPriorityBlocks,
+            schedules = schedules,
+            now = now,
+            zone = zone,
+        ) + TemporaryBlockEvaluator.activePackageNames(temporaryBlocks, now)
+    }
 }

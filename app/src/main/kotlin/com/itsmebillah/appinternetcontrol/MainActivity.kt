@@ -158,6 +158,10 @@ class MainActivity : Activity() {
             text = getString(R.string.focus_modes)
             setOnClickListener { startActivity(Intent(this@MainActivity, FocusModeActivity::class.java)) }
         })
+        content.addView(Button(this).apply {
+            text = getString(R.string.user_profiles)
+            setOnClickListener { startActivity(Intent(this@MainActivity, UserProfileActivity::class.java)) }
+        })
 
         val scrollView = ScrollView(this)
         appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -198,6 +202,7 @@ class MainActivity : Activity() {
             java.time.Instant.now(),
         )
         val focusPackages = FocusModeStore(this).activeMode()?.packageNames.orEmpty()
+        val activeProfile = UserProfileStore(this).activeProfile()
         val query = if (::searchField.isInitialized) searchField.text.toString().trim() else ""
         val matchingApps = installedApps.filter {
             query.isBlank() || it.displayName.contains(query, ignoreCase = true) ||
@@ -245,6 +250,8 @@ class MainActivity : Activity() {
                     app.packageName in activeTemporaryPackages -> getString(R.string.app_temporary_block)
                     ScheduleAction.BLOCK in appActions -> getString(R.string.app_schedule_block)
                     ScheduleAction.ALLOW in appActions -> getString(R.string.app_schedule_allow)
+                    app.packageName in activeProfile?.blockedPackageNames.orEmpty() -> getString(R.string.app_profile_block)
+                    app.packageName in activeProfile?.allowedPackageNames.orEmpty() -> getString(R.string.app_profile_allow)
                     app.packageName in focusPackages -> getString(R.string.app_focus_block)
                     else -> getString(if (app.packageName in selection.packageNames) R.string.app_manual_block else R.string.app_manual_allow)
                 }
@@ -328,10 +335,12 @@ class MainActivity : Activity() {
         if (!::statusView.isInitialized || !::enableButton.isInitialized) return
         val selection = selectionStore.read()
         val activeFocusMode = FocusModeStore(this).activeMode()
+        val activeProfile = UserProfileStore(this).activeProfile()
         val effectivePackages = ScheduleCoordinator.effectiveBlockedPackages(this)
         statusView.text = when {
             AppBlockingVpnService.isVpnActive -> getString(R.string.status_active_unverified)
             effectivePackages.isNotEmpty() -> getString(R.string.status_effective_not_active)
+            activeProfile != null -> getString(R.string.status_profile_active, activeProfile.name)
             activeFocusMode != null -> getString(R.string.status_focus_active, activeFocusMode.name)
             selection.packageNames.isNotEmpty() -> getString(R.string.status_schedule_allows)
             else -> getString(R.string.status_no_selection)

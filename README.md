@@ -19,11 +19,15 @@ The list uses Android's launcher-intent package-visibility query, so it shows la
 
 Schedules support one-time dates and weekly weekday rules with local start/end times and selected launchable apps. They survive app restarts and are re-evaluated after boot, clock/time-zone changes, app replacement, and scheduled boundaries. An active schedule overrides the manual selection for its apps; when active rules conflict, blocking wins. The scheduler uses inexact Android alarms, which can be delayed, and Android may prevent a background VPN service start. The screen reports pending/inactive status instead of claiming enforcement. Exact-alarm access is not requested.
 
-Temporary blocks start immediately for selected apps, support concurrent timers up to seven days, show remaining time, and can be canceled early. Expiry restores the current scheduled/manual decision. Temporary rules take precedence while active. Expiry alarms use the same inexact scheduler, so Android may let a temporary block run past its configured end; VPN traffic blocking and timer delivery have not been validated on a physical device.
+Temporary blocks start immediately for selected apps, support concurrent timers up to seven days, show remaining time, and can be canceled early. Expiry restores the current underlying decision. Temporary rules take precedence while active. Expiry alarms use the same inexact scheduler, so Android may let a temporary block run past its configured end; VPN traffic blocking and timer delivery have not been validated on a physical device.
 
 ## Focus modes
 
-Focus modes are locally stored named groups of launchable apps. Activate one group at a time to add those apps to the block set. Study, Work, and Sleep are suggested editable names. Active schedules can allow an app despite a focus mode; temporary blocks remain higher priority. Enforcement still requires VPN consent and physical-device validation.
+Focus modes are locally stored named groups of launchable apps. Activate one group at a time to add those apps to the block set. Study, Work, and Sleep are suggested editable names. Profiles and schedules can override focus rules; temporary blocks remain higher priority. Enforcement still requires VPN consent and physical-device validation.
+
+## User profiles
+
+Profiles are stored locally and can be created, edited, deleted, activated, or deactivated. A profile defines explicit blocked and allowed app sets, with Work, Study, and Sleep offered as editable name suggestions. One profile can be active at a time. Effective state precedence is temporary block > active schedule > active profile > active focus mode > manual selection; blocking wins when schedules conflict. Profiles represent local rules only and do not confirm that VPN traffic is being blocked.
 
 ## Prerequisites
 
