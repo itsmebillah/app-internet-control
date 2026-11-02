@@ -21,6 +21,10 @@ Schedules support one-time dates and weekly weekday rules with local start/end t
 
 Temporary blocks start immediately for selected apps, support concurrent timers up to seven days, show remaining time, and can be canceled early. Expiry restores the current scheduled/manual decision. Temporary rules take precedence while active. Expiry alarms use the same inexact scheduler, so Android may let a temporary block run past its configured end; VPN traffic blocking and timer delivery have not been validated on a physical device.
 
+## Focus modes
+
+Focus modes are locally stored named groups of launchable apps. Activate one group at a time to add those apps to the block set. Study, Work, and Sleep are suggested editable names. Active schedules can allow an app despite a focus mode; temporary blocks remain higher priority. Enforcement still requires VPN consent and physical-device validation.
+
 ## Prerequisites
 
 - Android Studio with a compatible JDK. This foundation uses Android Studio's bundled JBR 25; Gradle 9.6 supports running on JDK 25 and AGP 9.4 requires JDK 17 or newer.

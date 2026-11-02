@@ -33,12 +33,13 @@ object TemporaryBlockEvaluator {
 object EffectiveBlockResolver {
     fun resolve(
         manualBlockedPackages: Set<String>,
+        activeFocusMode: FocusMode? = null,
         schedules: List<BlockSchedule>,
         temporaryBlocks: List<TemporaryBlock>,
         now: Instant,
         zone: ZoneId,
     ): Set<String> = ScheduleEvaluator.effectiveBlockedPackages(
-        manualBlockedPackages = manualBlockedPackages,
+        manualBlockedPackages = manualBlockedPackages + activeFocusMode?.packageNames.orEmpty(),
         schedules = schedules,
         now = now,
         zone = zone,
