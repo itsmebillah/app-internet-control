@@ -1,6 +1,6 @@
 ﻿# App Internet Control — Master Project Plan
 
-**Status:** Features 1–10 are implemented as prototypes. Phase 11 has partial results from one realme Android 15/API 35 device; actual traffic filtering, reliable background alarm timing, usage statistics, and the approved API 29/34/37 device matrix remain unverified.
+**Status:** Features 1–10 are implemented as prototypes. Phase 11 has partial results from one realme Android 15/API 35 device. Offline UI refinements include a searchable icon-bearing schedule app picker, reactive VPN status on the Focus Mode screen, a shared color theme, and vector adaptive launcher icon assets; these changes await device review. Actual traffic filtering, reliable background alarm timing, usage statistics, and the approved API 29/34/37 device matrix remain unverified.
 **Authoritative requirements:** This document is the single source of truth for product requirements, technical decisions, risks, and acceptance criteria. Update it when requirements or validated platform behavior changes.
 **Repository:** [itsmebillah/app-internet-control](https://github.com/itsmebillah/app-internet-control)
 
@@ -282,6 +282,7 @@ These questions remain open and must be resolved with evidence; difficult featur
 - Per-app usage queries require special Usage Access and may be delayed/aggregated.
 - Android background and alarm delivery is conditional; perfect schedule timing cannot be promised without qualifying constraints and device testing.
 - Notifications and foreground execution have version-dependent permission and policy requirements.
+- Android owns the active-VPN status icon and system VPN indication; the app's optional speed notification is separate and cannot replace or hide Android's VPN indicator.
 - Cloud backup cannot restore Android system grants such as VPN consent or special access; each device must authorize those locally.
 
 ### Phase 11 device observations (2026-11-03)

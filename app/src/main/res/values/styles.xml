@@ -1,0 +1,27 @@
+<resources>
+    <style name="Theme.AppInternetControl" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">@color/aic_background</item>
+        <item name="android:colorPrimary">@color/aic_primary</item>
+        <item name="android:colorPrimaryDark">@color/aic_primary_dark</item>
+        <item name="android:colorAccent">@color/aic_accent</item>
+        <item name="android:colorButtonNormal">@color/aic_control_background</item>
+        <item name="android:textColorPrimary">@color/aic_text_primary</item>
+        <item name="android:textColorSecondary">@color/aic_text_secondary</item>
+        <item name="android:statusBarColor">@color/aic_background</item>
+        <item name="android:navigationBarColor">@color/aic_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:buttonStyle">@style/Widget.AppInternetControl.Button</item>
+    </style>
+
+    <style name="Widget.AppInternetControl.Button" parent="@android:style/Widget.Material.Button">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">@color/aic_primary</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:fontFamily">sans-medium</item>
+        <item name="android:backgroundTint">@color/aic_control_background</item>
+    </style>
+</resources>

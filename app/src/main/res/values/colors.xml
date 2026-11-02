@@ -1,0 +1,13 @@
+<resources>
+    <color name="aic_background">#F4F7FC</color>
+    <color name="aic_primary">#2746C7</color>
+    <color name="aic_primary_dark">#192B68</color>
+    <color name="aic_accent">#006B73</color>
+    <color name="aic_control_background">#E8EFFB</color>
+    <color name="aic_text_primary">#18223B</color>
+    <color name="aic_text_secondary">#5E6B85</color>
+    <color name="aic_icon_background">#18245C</color>
+    <color name="aic_icon_shield">#29C8CE</color>
+    <color name="aic_icon_highlight">#FFD166</color>
+    <color name="aic_icon_alert">#FF6B78</color>
+</resources>

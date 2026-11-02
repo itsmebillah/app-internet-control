@@ -19,6 +19,8 @@ The list uses Android's launcher-intent package-visibility query, so it shows la
 
 Schedules support one-time dates and weekly weekday rules with local start/end times and selected launchable apps. They survive app restarts and are re-evaluated after boot, clock/time-zone changes, app replacement, and scheduled boundaries. An active schedule overrides the manual selection for its apps; when active rules conflict, blocking wins. The scheduler uses inexact Android alarms, which can be delayed, and Android may prevent a background VPN service start. The screen reports pending/inactive status instead of claiming enforcement. Exact-alarm access is not requested.
 
+The schedule app picker shows each app's launcher icon and name, filters names without case sensitivity, and keeps choices independent of the current search results. A no-match state is shown when the query has no results. Search, selection state, and empty-state behavior have unit tests; visual interaction on the updated build is pending the next unlocked-phone test.
+
 Temporary blocks start immediately for selected apps, support concurrent timers up to seven days, show remaining time, and can be canceled early. Expiry restores the current underlying decision. Temporary rules take precedence while active. Expiry alarms use the same inexact scheduler, so Android may let a temporary block run past its configured end; VPN traffic blocking and timer delivery have not been validated on a physical device.
 
 ## Focus modes
@@ -88,3 +90,13 @@ The one-time schedule ended 56 seconds after its foreground boundary in one run.
 
 - [Master plan](MASTER_PLAN.md) — requirements, approved platform levels, risks, and acceptance criteria.
 - [Development plan](DEVELOPMENT_PLAN.md) — staged implementation roadmap.
+
+## Interface and launcher appearance
+
+The app uses a shared light palette with blue and teal accents, accessible text colors, and native Android controls. The launcher uses original vector adaptive-icon assets built around a speedometer, shield, and interrupted-network mark. The assets compile successfully; launcher appearance and screen polish still need review on the physical phone.
+
+Android controls VPN status. While a VPN service is active, Android displays the system VPN key/status indicator and its VPN notification. The app cannot hide or spoof that indicator. Its optional live-speed foreground notification is a separate notification and may appear alongside the system VPN indication. See the [Android VPN user-experience documentation](https://developer.android.com/develop/connectivity/vpn).
+
+## Latest offline verification — 2026-11-03
+
+The updated code passes 45 unit tests and `assembleDebug`. The debug APK is 3,358,408 bytes (about 3.20 MiB); DEX files are the largest APK entries. A pre-change APK was installed on the authorized realme RMX3834 / Android 15 (API 35), but the phone was locked and then disconnected before the updated UI could be inspected or installed. The revised picker, status refresh, theme, and launcher icon therefore still need interactive device verification. No release APK was created. The Android Studio JBR was used only in the build process; no machine-wide environment variables were changed.

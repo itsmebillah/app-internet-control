@@ -3,7 +3,10 @@
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
@@ -27,6 +30,13 @@ class FocusModeActivity : Activity() {
     private var installedApps: List<InstalledApp> = emptyList()
     private var selectedPackages = mutableSetOf<String>()
     private var editingModeId: String? = null
+    private var statusReceiverRegistered = false
+
+    private val vpnStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            renderStatus()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +51,27 @@ class FocusModeActivity : Activity() {
         ScheduleCoordinator.reconcile(this)
         renderModes()
         renderStatus()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter(AppBlockingVpnService.ACTION_STATUS_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(vpnStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(vpnStatusReceiver, filter)
+        }
+        statusReceiverRegistered = true
+        renderStatus()
+    }
+
+    override fun onStop() {
+        if (statusReceiverRegistered) {
+            unregisterReceiver(vpnStatusReceiver)
+            statusReceiverRegistered = false
+        }
+        super.onStop()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -237,11 +268,15 @@ class FocusModeActivity : Activity() {
     private fun renderStatus() {
         if (!::statusView.isInitialized) return
         val active = focusStore.activeMode()
-        statusView.text = when {
-            AppBlockingVpnService.isVpnActive -> getString(R.string.status_active_unverified)
-            ScheduleCoordinator.effectiveBlockedPackages(this).isNotEmpty() -> getString(R.string.status_effective_not_active)
-            active != null -> getString(R.string.status_focus_active, active.name)
-            else -> getString(R.string.status_no_selection)
+        statusView.text = when (FocusStatusPolicy.resolve(
+            vpnActive = AppBlockingVpnService.isVpnActive,
+            hasEffectiveBlocks = ScheduleCoordinator.effectiveBlockedPackages(this).isNotEmpty(),
+            activeModeName = active?.name,
+        )) {
+            FocusStatus.ACTIVE_UNVERIFIED -> getString(R.string.status_active_unverified)
+            FocusStatus.RULE_NOT_ACTIVE -> getString(R.string.status_effective_not_active)
+            FocusStatus.MODE_ACTIVE -> getString(R.string.status_focus_active, active?.name.orEmpty())
+            FocusStatus.NO_SELECTION -> getString(R.string.status_no_selection)
         }
     }
 

@@ -173,6 +173,9 @@
     <string name="create_schedule">Create or edit a schedule</string>
     <string name="schedule_name_hint">Schedule name</string>
     <string name="choose_apps">Choose apps</string>
+    <string name="app_picker_empty">No launchable apps are available.</string>
+    <string name="app_picker_no_match">No apps match this search.</string>
+    <string name="schedule_app_selection_accessibility">Select %1$s for this schedule</string>
     <string name="one_time">One time</string>
     <string name="recurring_weekly">Weekly</string>
     <string name="schedule_date_label">Date: %1$s</string>
