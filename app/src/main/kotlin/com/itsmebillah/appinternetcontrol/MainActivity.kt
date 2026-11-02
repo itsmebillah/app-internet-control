@@ -170,6 +170,10 @@ class MainActivity : Activity() {
             text = getString(R.string.speed_title)
             setOnClickListener { startActivity(Intent(this@MainActivity, SpeedActivity::class.java)) }
         })
+        content.addView(Button(this).apply {
+            text = getString(R.string.usage_title)
+            setOnClickListener { startActivity(Intent(this@MainActivity, UsageHistoryActivity::class.java)) }
+        })
 
         val scrollView = ScrollView(this)
         appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }

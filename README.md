@@ -1,6 +1,6 @@
 ﻿# App Internet Control
 
-App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, and an opt-in live speed estimate. Traffic blocking and background timing have not been verified on a physical device; the UI labels enforcement as unverified. Usage history/analytics, accounts, and cloud sync are not implemented.
+App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, and opt-in local usage history. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Usage analytics, accounts, and cloud sync are not implemented.
 
 ## Approved Android levels
 
@@ -36,6 +36,10 @@ The history screen records manual block/allow requests (including requests overr
 ## Live network speed
 
 The speed screen estimates aggregate device-wide download/upload rates from Android `TrafficStats` byte-counter deltas. It is approximate, includes all interfaces, and is not per-app usage. Unsupported/reset counters display no value. Sampling is user-started and can be set to 1, 2, 5, or 10 seconds (2 seconds by default); stop it from the screen or ongoing notification. The ongoing indicator runs as a user-started `specialUse` foreground service. Android 13+ notification permission is requested; if denied, monitoring still runs but the notification may be hidden from the drawer. This foreground service type requires platform/distribution policy review before a Play release. Counter behavior, notification visibility, and battery impact need real-device testing.
+
+## Internet usage history
+
+Usage history requires the user to grant Android Usage Access in Settings. After the user starts collection, the app queries per-UID Wi-Fi and mobile usage summaries with `NetworkStatsManager` in the background about every six hours, plus on manual capture. Completed daily windows are stored in local SQLite and used for today, current month, and since-collection-start totals. Collection starts at opt-in; older device statistics are not imported. Visible apps that share a UID are grouped; hidden/unrecognized UIDs and non-Wi-Fi/mobile transport data are not shown. A persistent background job can be delayed, and catch-up after long downtime is capped at 30 days with a visible gap warning. The user can pause collection or clear local history. Access revocation and unsupported/error responses add no records. Device/OEM coverage and attribution need physical-device validation.
 
 ## Prerequisites
 
