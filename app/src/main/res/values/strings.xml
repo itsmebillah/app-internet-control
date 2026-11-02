@@ -14,6 +14,28 @@
     <string name="app_schedule_allow">scheduled allow</string>
     <string name="app_manual_block">manual block selected</string>
     <string name="app_manual_allow">manual allow selected</string>
+    <string name="app_temporary_block">temporary block active</string>
+    <string name="temporary_blocks">Temporary blocks</string>
+    <string name="temporary_title">Temporary app blocks</string>
+    <string name="temporary_timing_warning">Blocks start now and expire automatically. Android can delay the expiry alarm, and VPN enforcement must be active.</string>
+    <string name="temporary_choose_apps">Choose apps to block temporarily</string>
+    <string name="temporary_duration">Duration</string>
+    <string name="temporary_start_block">Start temporary block</string>
+    <string name="temporary_empty">No active temporary blocks.</string>
+    <string name="temporary_cancel">Cancel block</string>
+    <string name="temporary_invalid_duration">Enter a duration from 1 minute through 7 days.</string>
+    <string name="temporary_choose_app">Choose at least one visible app.</string>
+    <string name="active_temporary_blocks">Active temporary blocks</string>
+    <string name="remaining_days_hours">%1$d days %2$d hr</string>
+    <string name="remaining_hours_minutes">%1$d hr %2$d min</string>
+    <string name="remaining_minutes">%1$d min</string>
+    <string name="temporary_vpn_consent_declined">Temporary block saved, but VPN consent was declined; traffic is not being blocked.</string>
+    <string name="temporary_block_card">%1$s\nExpires %2$s · %3$s remaining</string>
+    <string-array name="duration_units">
+        <item>Minutes</item>
+        <item>Hours</item>
+        <item>Days</item>
+    </string-array>
     <string name="enable_selected_blocks">Enable selected blocks</string>
     <string name="enable_current_blocks">Enable current blocks</string>
     <string name="manage_schedules">Manage schedules</string>

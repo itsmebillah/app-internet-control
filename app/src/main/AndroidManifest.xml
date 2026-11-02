@@ -36,6 +36,9 @@
         <activity
             android:name=".ScheduleActivity"
             android:exported="false" />
+        <activity
+            android:name=".TemporaryBlockActivity"
+            android:exported="false" />
         <receiver
             android:name=".ScheduleAlarmReceiver"
             android:exported="false" />

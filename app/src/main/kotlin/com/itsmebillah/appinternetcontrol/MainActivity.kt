@@ -59,6 +59,12 @@ class MainActivity : Activity() {
         renderStatus()
     }
 
+    override fun onResume() {
+        super.onResume()
+        ScheduleCoordinator.reconcile(this)
+        renderStatus()
+    }
+
     override fun onStop() {
         if (receiverRegistered) {
             unregisterReceiver(statusReceiver)
@@ -144,6 +150,10 @@ class MainActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@MainActivity, ScheduleActivity::class.java)) }
         }
         content.addView(schedulesButton)
+        content.addView(Button(this).apply {
+            text = getString(R.string.temporary_blocks)
+            setOnClickListener { startActivity(Intent(this@MainActivity, TemporaryBlockActivity::class.java)) }
+        })
 
         val scrollView = ScrollView(this)
         appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -179,6 +189,10 @@ class MainActivity : Activity() {
         val selection = selectionStore.read()
         val activeSchedules = BlockScheduleStore(this).read()
             .filter { ScheduleEvaluator.isActive(it, java.time.Instant.now(), java.time.ZoneId.systemDefault()) }
+        val activeTemporaryPackages = TemporaryBlockEvaluator.activePackageNames(
+            TemporaryBlockStore(this).expire(java.time.Instant.now()),
+            java.time.Instant.now(),
+        )
         val query = if (::searchField.isInitialized) searchField.text.toString().trim() else ""
         val matchingApps = installedApps.filter {
             query.isBlank() || it.displayName.contains(query, ignoreCase = true) ||
@@ -223,6 +237,7 @@ class MainActivity : Activity() {
             labels.addView(TextView(this).apply {
                 val appActions = activeSchedules.filter { app.packageName in it.packageNames }.map { it.action }
                 val scheduleState = when {
+                    app.packageName in activeTemporaryPackages -> getString(R.string.app_temporary_block)
                     ScheduleAction.BLOCK in appActions -> getString(R.string.app_schedule_block)
                     ScheduleAction.ALLOW in appActions -> getString(R.string.app_schedule_allow)
                     else -> getString(if (app.packageName in selection.packageNames) R.string.app_manual_block else R.string.app_manual_allow)

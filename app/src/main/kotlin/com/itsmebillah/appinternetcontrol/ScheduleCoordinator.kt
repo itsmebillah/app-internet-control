@@ -11,19 +11,28 @@ import java.time.ZoneId
 
 object ScheduleCoordinator {
     fun effectiveBlockedPackages(context: Context, now: Instant = Instant.now()): Set<String> =
-        ScheduleEvaluator.effectiveBlockedPackages(
+        EffectiveBlockResolver.resolve(
             manualBlockedPackages = AppSelectionStore(context).read().packageNames,
             schedules = BlockScheduleStore(context).read(),
+            temporaryBlocks = TemporaryBlockStore(context).expire(now),
             now = now,
             zone = ZoneId.systemDefault(),
         )
 
     fun reconcile(context: Context) {
         val appContext = context.applicationContext
+        val now = Instant.now()
         val schedules = BlockScheduleStore(appContext).read()
-        scheduleNextBoundary(appContext, schedules)
+        val temporaryBlocks = TemporaryBlockStore(appContext).expire(now)
+        scheduleNextBoundary(appContext, schedules, temporaryBlocks, now)
 
-        val effectivePackages = effectiveBlockedPackages(appContext)
+        val effectivePackages = EffectiveBlockResolver.resolve(
+            manualBlockedPackages = AppSelectionStore(appContext).read().packageNames,
+            schedules = schedules,
+            temporaryBlocks = temporaryBlocks,
+            now = now,
+            zone = ZoneId.systemDefault(),
+        )
         val runtimeStore = ScheduleRuntimeStore(appContext)
         if (effectivePackages.isEmpty()) {
             if (AppBlockingVpnService.isVpnActive) {
@@ -68,7 +77,12 @@ object ScheduleCoordinator {
         else context.startService(intent)
     }
 
-    private fun scheduleNextBoundary(context: Context, schedules: List<BlockSchedule>) {
+    private fun scheduleNextBoundary(
+        context: Context,
+        schedules: List<BlockSchedule>,
+        temporaryBlocks: List<TemporaryBlock>,
+        now: Instant,
+    ) {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
@@ -76,7 +90,10 @@ object ScheduleCoordinator {
             Intent(context, ScheduleAlarmReceiver::class.java).setAction(ACTION_SCHEDULE_BOUNDARY),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val next = ScheduleEvaluator.nextBoundary(schedules, Instant.now(), ZoneId.systemDefault())
+        val next = listOfNotNull(
+            ScheduleEvaluator.nextBoundary(schedules, now, ZoneId.systemDefault()),
+            TemporaryBlockEvaluator.nextExpiry(temporaryBlocks, now),
+        ).minOrNull()
         if (next == null) {
             alarmManager.cancel(pendingIntent)
         } else {

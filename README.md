@@ -19,6 +19,8 @@ The list uses Android's launcher-intent package-visibility query, so it shows la
 
 Schedules support one-time dates and weekly weekday rules with local start/end times and selected launchable apps. They survive app restarts and are re-evaluated after boot, clock/time-zone changes, app replacement, and scheduled boundaries. An active schedule overrides the manual selection for its apps; when active rules conflict, blocking wins. The scheduler uses inexact Android alarms, which can be delayed, and Android may prevent a background VPN service start. The screen reports pending/inactive status instead of claiming enforcement. Exact-alarm access is not requested.
 
+Temporary blocks start immediately for selected apps, support concurrent timers up to seven days, show remaining time, and can be canceled early. Expiry restores the current scheduled/manual decision. Temporary rules take precedence while active. Expiry alarms use the same inexact scheduler, so Android may let a temporary block run past its configured end; VPN traffic blocking and timer delivery have not been validated on a physical device.
+
 ## Prerequisites
 
 - Android Studio with a compatible JDK. This foundation uses Android Studio's bundled JBR 25; Gradle 9.6 supports running on JDK 25 and AGP 9.4 requires JDK 17 or newer.
