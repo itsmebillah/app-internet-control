@@ -67,6 +67,38 @@ object UsageSummaryCalculator {
     }
 }
 
+data class DailyUsagePoint(
+    val date: LocalDate,
+    val receivedBytes: Long,
+    val transmittedBytes: Long,
+    val coveredMillis: Long,
+)
+
+object UsageAnalyticsCalculator {
+    fun topApps(records: List<UsageRecord>, period: UsagePeriod, today: LocalDate, limit: Int = 5): List<AppUsageTotal> =
+        UsageSummaryCalculator.aggregate(records, period, today).take(limit.coerceAtLeast(0))
+
+    fun recentDays(
+        records: List<UsageRecord>,
+        coverageMillisByDay: Map<LocalDate, Long>,
+        today: LocalDate,
+        dayCount: Int = 7,
+    ): List<DailyUsagePoint> {
+        if (dayCount <= 0) return emptyList()
+        val selectedDates = (dayCount.coerceAtLeast(0) - 1 downTo 0).map { today.minusDays(it.toLong()) }
+        return selectedDates.mapNotNull { date ->
+            val coverage = coverageMillisByDay[date]?.takeIf { it > 0 } ?: return@mapNotNull null
+            val dayRecords = records.filter { it.date == date }
+            DailyUsagePoint(
+                date = date,
+                receivedBytes = dayRecords.sumOf { it.receivedBytes },
+                transmittedBytes = dayRecords.sumOf { it.transmittedBytes },
+                coveredMillis = coverage,
+            )
+        }
+    }
+}
+
 object UsageBytesFormatter {
     fun format(bytes: Long): String {
         if (bytes < 0) return "—"

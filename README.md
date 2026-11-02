@@ -1,6 +1,6 @@
 ﻿# App Internet Control
 
-App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, and opt-in local usage history. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Usage analytics, accounts, and cloud sync are not implemented.
+App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, local usage history, and usage analytics. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Accounts and cloud sync are not implemented.
 
 ## Approved Android levels
 
@@ -40,6 +40,10 @@ The speed screen estimates aggregate device-wide download/upload rates from Andr
 ## Internet usage history
 
 Usage history requires the user to grant Android Usage Access in Settings. After the user starts collection, the app queries per-UID Wi-Fi and mobile usage summaries with `NetworkStatsManager` in the background about every six hours, plus on manual capture. Completed daily windows are stored in local SQLite and used for today, current month, and since-collection-start totals. Collection starts at opt-in; older device statistics are not imported. Visible apps that share a UID are grouped; hidden/unrecognized UIDs and non-Wi-Fi/mobile transport data are not shown. A persistent background job can be delayed, and catch-up after long downtime is capped at 30 days with a visible gap warning. The user can pause collection or clear local history. Access revocation and unsupported/error responses add no records. Device/OEM coverage and attribution need physical-device validation.
+
+## Usage analytics
+
+Analytics ranks the top visible apps/UID groups for today, this month, or all captured history, and displays a seven-day trend for dates with recorded coverage. The bar lengths are relative within the current view; exact totals appear in text for accessibility. Days without captured windows are omitted, and partial coverage is not described as a complete day. Analytics uses the same source, local history, and limitations as the Usage History screen.
 
 ## Prerequisites
 
