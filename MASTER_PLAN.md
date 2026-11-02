@@ -1,6 +1,6 @@
 ﻿# App Internet Control — Master Project Plan
 
-**Status:** Features 1–5 are implemented as prototypes; physical-device VPN and alarm validation is still pending.
+**Status:** Features 1–6 are implemented as prototypes; physical-device VPN and alarm validation is still pending.
 **Authoritative requirements:** This document is the single source of truth for product requirements, technical decisions, risks, and acceptance criteria. Update it when requirements or validated platform behavior changes.
 **Repository:** [itsmebillah/app-internet-control](https://github.com/itsmebillah/app-internet-control)
 
@@ -126,6 +126,8 @@ Focus modes are locally stored named groups of launchable app package IDs, with 
 
 User profiles are locally stored named rules with separate explicit block and allow package sets; one profile may be active. Work, Study, and Sleep are editable name suggestions. Profile decisions override the active focus group and manual state, schedules override profile decisions, and temporary blocks remain highest priority. Profile preferences stay local and do not require an account. Profiles provide rule state only: traffic enforcement remains dependent on VPN consent and physical-device validation.
 
+Schedule History records manual block/allow requests (including when a higher-priority rule overrides them) and changes to effective per-app rules caused by temporary timers, schedules, profiles, or focus modes. Entries include source, timestamp, and enforcement state. The view retains at most 500 events and allows users to clear the log. A newly observed baseline is not presented as a user action. Since this VPN prototype cannot verify end-to-end enforcement, history reports overridden, pending/inactive, or active-but-unverified state and never claims a successful block. History is device-local and has no export or sync.
+
 Temporary blocks start immediately, persist selected package IDs and an absolute expiration instant locally, support concurrent timers, and can be canceled early. The app evaluates the expiry against wall-clock time and includes the next active expiration in the same inexact alarm scheduler. Late delivery can therefore extend a block; the UI warns about this limitation, and device timing remains unverified.
 
 ### Local storage and cloud synchronization
@@ -144,7 +146,7 @@ Expected screens and key information:
 - **Focus modes and profiles:** Create/edit groups, activate/switch, and see rule precedence.
 - **Live speed:** Download/upload readout, scope, refresh setting, and notification indicator control.
 - **Usage analytics:** App ranking, daily/monthly/lifetime summaries, coverage dates, and data source.
-- **Schedule history:** Timestamped requested actions and outcomes.
+- **Schedule history:** Timestamped effective block/allow transitions, source, and honest enforcement state.
 - **Account and cloud backup settings:** Sign-in state, sync consent/status, backup/restore, data export/deletion, privacy and retention controls.
 
 All screens should support accessible labels, scalable text, clear empty/error/loading states, and truthful permission explanations.

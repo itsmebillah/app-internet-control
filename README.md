@@ -29,6 +29,10 @@ Focus modes are locally stored named groups of launchable apps. Activate one gro
 
 Profiles are stored locally and can be created, edited, deleted, activated, or deactivated. A profile defines explicit blocked and allowed app sets, with Work, Study, and Sleep offered as editable name suggestions. One profile can be active at a time. Effective state precedence is temporary block > active schedule > active profile > active focus mode > manual selection; blocking wins when schedules conflict. Profiles represent local rules only and do not confirm that VPN traffic is being blocked.
 
+## Change history
+
+The history screen records manual block/allow requests (including requests overridden by higher-priority rules) and effective per-app transitions caused by timers, schedules, profiles, and focus modes. Entries include local timestamp, source, and enforcement state. It stores up to 500 events on-device and provides a clear-history action. The first observed state is a baseline rather than an action. VPN-active events remain explicitly unverified, and pending/inactive states do not claim that traffic was blocked. History has no export control and is not synchronized.
+
 ## Prerequisites
 
 - Android Studio with a compatible JDK. This foundation uses Android Studio's bundled JBR 25; Gradle 9.6 supports running on JDK 25 and AGP 9.4 requires JDK 17 or newer.

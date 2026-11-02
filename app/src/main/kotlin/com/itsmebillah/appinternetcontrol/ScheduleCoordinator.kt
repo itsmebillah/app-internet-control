@@ -37,6 +37,7 @@ object ScheduleCoordinator {
             now = now,
             zone = ZoneId.systemDefault(),
         )
+        recordEffectiveTransitions(appContext, now, effectivePackages, schedules, temporaryBlocks)
         val runtimeStore = ScheduleRuntimeStore(appContext)
         if (effectivePackages.isEmpty()) {
             if (AppBlockingVpnService.isVpnActive) {
@@ -74,6 +75,73 @@ object ScheduleCoordinator {
             runtimeStore.status = ScheduleRuntimeStore.STATUS_BACKGROUND_START_PENDING
         }
         notifyStatusChanged(appContext)
+    }
+
+    fun captureManualChange(context: Context, packageName: String, requestedBlocked: Boolean) {
+        val now = Instant.now()
+        val packages = effectiveBlockedPackages(context, now)
+        val appContext = context.applicationContext
+        recordEffectiveTransitions(appContext, now, packages,
+            BlockScheduleStore(appContext).read(), TemporaryBlockStore(appContext).read(),
+            manualRequest = packageName to requestedBlocked)
+    }
+
+    private fun recordEffectiveTransitions(
+        context: Context,
+        now: Instant,
+        blockedPackages: Set<String>,
+        schedules: List<BlockSchedule>,
+        temporaryBlocks: List<TemporaryBlock>,
+        manualRequest: Pair<String, Boolean>? = null,
+    ) {
+        val manual = AppSelectionStore(context).read().packageNames
+        val focus = FocusModeStore(context).activeMode()
+        val profile = UserProfileStore(context).activeProfile()
+        val activeSchedules = schedules.filter { ScheduleEvaluator.isActive(it, now, ZoneId.systemDefault()) }
+        val activeTemporary = TemporaryBlockEvaluator.activePackageNames(temporaryBlocks, now)
+        val history = ChangeHistoryStore(context)
+        val previous = history.readSnapshot()
+        val trackedPackages = previous.keys + manual + focus?.packageNames.orEmpty() +
+            profile?.blockedPackageNames.orEmpty() + profile?.allowedPackageNames.orEmpty() +
+            activeSchedules.flatMap { it.packageNames } + activeTemporary
+        val decisions = trackedPackages.associateWith { packageName ->
+            val source = when {
+                packageName in activeTemporary -> ChangeSource.TIMER
+                activeSchedules.any { packageName in it.packageNames } -> ChangeSource.SCHEDULE
+                packageName in profile?.blockedPackageNames.orEmpty() || packageName in profile?.allowedPackageNames.orEmpty() -> ChangeSource.PROFILE
+                packageName in focus?.packageNames.orEmpty() -> ChangeSource.FOCUS
+                else -> ChangeSource.MANUAL
+            }
+            EffectiveDecision(packageName in blockedPackages, source)
+        }
+        if (history.hasSnapshot()) {
+            val transitions = ChangeHistoryReducer.transitions(previous, decisions, now) { blocked ->
+                when {
+                    AppBlockingVpnService.isVpnActive -> EnforcementOutcome.ACTIVE_UNVERIFIED
+                    blocked -> EnforcementOutcome.PENDING
+                    else -> EnforcementOutcome.NOT_ACTIVE
+                }
+            }.filterNot { it.packageName == manualRequest?.first }
+            history.append(transitions)
+        }
+        manualRequest?.let { (packageName, requestedBlocked) ->
+            val effectiveBlocked = decisions[packageName]?.blocked == true
+            val outcome = when {
+                effectiveBlocked != requestedBlocked -> EnforcementOutcome.OVERRIDDEN
+                AppBlockingVpnService.isVpnActive && requestedBlocked -> EnforcementOutcome.ACTIVE_UNVERIFIED
+                requestedBlocked -> EnforcementOutcome.PENDING
+                else -> EnforcementOutcome.NOT_ACTIVE
+            }
+            history.append(listOf(ChangeEvent(
+                id = "$packageName:${now.toEpochMilli()}:manual",
+                timestamp = now,
+                packageName = packageName,
+                blocked = requestedBlocked,
+                source = ChangeSource.MANUAL,
+                outcome = outcome,
+            )))
+        }
+        history.writeSnapshot(decisions)
     }
 
     private fun startForegroundService(context: Context, intent: Intent) {

@@ -45,6 +45,9 @@
         <activity
             android:name=".UserProfileActivity"
             android:exported="false" />
+        <activity
+            android:name=".ChangeHistoryActivity"
+            android:exported="false" />
         <receiver
             android:name=".ScheduleAlarmReceiver"
             android:exported="false" />

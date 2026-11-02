@@ -162,6 +162,10 @@ class MainActivity : Activity() {
             text = getString(R.string.user_profiles)
             setOnClickListener { startActivity(Intent(this@MainActivity, UserProfileActivity::class.java)) }
         })
+        content.addView(Button(this).apply {
+            text = getString(R.string.history_title)
+            setOnClickListener { startActivity(Intent(this@MainActivity, ChangeHistoryActivity::class.java)) }
+        })
 
         val scrollView = ScrollView(this)
         appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -276,6 +280,7 @@ class MainActivity : Activity() {
     private fun onSelectionChanged(app: InstalledApp, shouldBlock: Boolean) {
         val updated = selectionStore.read().withBlocked(app.packageName, shouldBlock)
         selectionStore.write(updated)
+        ScheduleCoordinator.captureManualChange(this, app.packageName, shouldBlock)
         renderStatus()
 
         if (ScheduleCoordinator.effectiveBlockedPackages(this).isEmpty()) {
