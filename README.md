@@ -1,6 +1,6 @@
 ﻿# App Internet Control
 
-App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, local usage history, and usage analytics. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Accounts and cloud sync are not implemented.
+App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, local usage history, usage analytics, and a Supabase account/backup prototype. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Supabase authentication and backup are not verified until configured against the project.
 
 ## Approved Android levels
 
@@ -45,6 +45,16 @@ Usage history requires the user to grant Android Usage Access in Settings. After
 
 Analytics ranks the top visible apps/UID groups for today, this month, or all captured history, and displays a seven-day trend for dates with recorded coverage. The bar lengths are relative within the current view; exact totals appear in text for accessibility. Days without captured windows are omitted, and partial coverage is not described as a complete day. Analytics uses the same source, local history, and limitations as the Usage History screen.
 
+## Accounts and cloud backup (Feature 10 prototype)
+
+The account screen uses Supabase Auth REST endpoints with the Android client's public publishable key only. Session tokens are encrypted with AES-GCM using a key held by Android Keystore. Create-account, sign-in, sign-out, and password-recovery requests are implemented but have not been tested against a configured Supabase project. Core app data remains local when signed out or offline.
+
+Cloud backup is off by default and is manual after explicit opt-in. It includes selected app package IDs and active selection metadata, profiles, schedules, and focus modes. It never includes usage history, analytics, passwords, VPN consent, or Android special-access grants. Each sync compares local and cloud snapshots and asks the user which copy should replace the other; it never silently merges or overwrites. Backup format version 1 is stored in settings. Restore re-evaluates schedules locally and cannot restore system permissions.
+
+To configure local development, copy `supabase.properties.example` to the repository root as `supabase.properties` and fill in the HTTPS project URL and publishable key from Supabase project API settings. The local file is gitignored. Do not put a `service_role` key, password, or token there. The project URL was not present in this checkout, so account networking currently reports **Not configured**. In Supabase, apply `supabase/migrations/202611020001_user_backups.sql`, then run its pgTAP policy suite from `supabase/tests/user_backup_rls.test.sql` against a disposable project/database. Owner access policies are enabled for every app-prefixed backup table; the atomic `app_replace_my_backup` RPC uses `SECURITY INVOKER` and derives ownership from `auth.uid()`.
+
+Password recovery and email confirmation use the `appinternetcontrol://auth-callback` deep link. Add that exact redirect URL to the Supabase Auth redirect allow-list and use email templates that preserve Supabase's callback tokens; then verify sign-up confirmation and password recovery against the project. Account deletion is not exposed in the app: Supabase user deletion requires a separately reviewed server-side function and an explicit product deletion flow. Neither backend setup nor server-side account deletion has been run by this repository change.
+
 ## Prerequisites
 
 - Android Studio with a compatible JDK. This foundation uses Android Studio's bundled JBR 25; Gradle 9.6 supports running on JDK 25 and AGP 9.4 requires JDK 17 or newer.
@@ -54,6 +64,8 @@ Analytics ranks the top visible apps/UID groups for today, this month, or all ca
 Build versions are pinned to Android Gradle Plugin 9.4.0, Gradle Wrapper 9.6.0, and AGP built-in Kotlin 2.2.10. AGP 9.4 supports API 37 and specifies Gradle 9.6.0 and Build Tools 36.0.0 as its defaults.
 
 The repository does not track `local.properties`, SDK paths, signing files, credentials, or other machine-specific configuration. Android Studio can use its configured SDK path; for command-line builds set `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) to your installed SDK directory if Gradle cannot locate it.
+
+The Supabase client config is separate: copy `supabase.properties.example` to `supabase.properties` only on a developer machine. Never commit it. The app uses only the publishable client key and cannot perform administrative user deletion.
 
 ## Build and verify
 

@@ -1,0 +1,5 @@
+# Copy to supabase.properties (which is gitignored) and fill in values from
+# Supabase Project Settings > API. Use only the HTTPS project URL and publishable
+# (anon) client key. Never use a service_role key in the Android app.
+supabase.url=https://YOUR_PROJECT_REF.supabase.co
+supabase.publishableKey=YOUR_SUPABASE_PUBLISHABLE_KEY

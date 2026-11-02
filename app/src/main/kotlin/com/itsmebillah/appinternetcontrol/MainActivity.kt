@@ -178,6 +178,10 @@ class MainActivity : Activity() {
             text = getString(R.string.analytics_title)
             setOnClickListener { startActivity(Intent(this@MainActivity, UsageAnalyticsActivity::class.java)) }
         })
+        content.addView(Button(this).apply {
+            text = "Account and backup"
+            setOnClickListener { startActivity(Intent(this@MainActivity, AccountActivity::class.java)) }
+        })
 
         val scrollView = ScrollView(this)
         appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }

@@ -30,6 +30,11 @@ class FocusModeStore(context: Context) {
         writeModes(modes)
     }
 
+    fun replaceAll(modes: List<FocusMode>, activeId: String?) {
+        writeModes(modes)
+        activate(activeId)
+    }
+
     fun activate(id: String?) {
         val validId = id?.takeIf { selectedId -> read().any { it.id == selectedId } }
         preferences.edit().putString(ACTIVE_MODE_KEY, validId).apply()

@@ -29,6 +29,11 @@ class UserProfileStore(context: Context) {
         write(read().filterNot { it.id == profile.id } + profile)
     }
 
+    fun replaceAll(profiles: List<UserProfile>, activeId: String?) {
+        write(profiles)
+        activate(activeId)
+    }
+
     fun activate(id: String?) {
         val validId = id?.takeIf { candidate -> read().any { it.id == candidate } }
         preferences.edit().putString(ACTIVE_PROFILE_KEY, validId).apply()

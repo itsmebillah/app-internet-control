@@ -70,9 +70,10 @@ Selective blocking is a technically demanding goal, not an established capabilit
 ### I. User Accounts
 
 - Support account creation, login, and logout if a secure backend is selected.
-- Associate explicitly selected settings and history with an account only after the user understands and enables sync.
+- Sync only explicitly opted-in app settings, profiles, schedules, and focus modes; usage history and analytics remain device-local by product decision.
 - Back up and restore supported data; retain offline local controls when signed out or offline.
-- Define conflict resolution, account deletion, recovery, and handling of unsupported/local-only records before launch.
+- Require an explicit upload/restore choice for conflicts and never sync Android permission grants.
+- Define and verify account recovery, account deletion, and handling of unsupported/local-only records before launch.
 
 ### J. Usage Analytics
 
@@ -138,7 +139,7 @@ Temporary blocks start immediately, persist selected package IDs and an absolute
 
 ### Local storage and cloud synchronization
 
-Use a versioned local schema, migrations, transactional updates, and explicit retention/clear/export behavior. Keep core blocking preferences, profiles, and schedules local so offline controls do not depend on an account. Sync only user-approved records. Select a backend and authentication provider only after requirements, costs, account deletion, recovery, regional hosting, and privacy disclosures are reviewed. Use TLS, least-privilege authorization, server-side access controls, and platform-backed secure storage for session material. Never store credentials, signing keys, or service secrets in the repository or client source. Define conflict handling and schema versioning before enabling multi-device restore.
+Keep core controls local and available offline. Approved backend: Supabase Auth + Postgres. The client uses only its public publishable key over TLS; its session is AES-GCM encrypted with an Android Keystore key. Backup is explicit opt-in and manual, limited to selected-app settings, profiles, schedules, and focus modes; usage history and analytics are excluded. The Supabase migration enables RLS on every table, limits rows to `auth.uid()`, and offers one transactional `SECURITY INVOKER` replacement RPC. Conflict handling requires the user to choose upload or restore. Cloud integration remains unverified until a project URL/key is configured, migrations/policies are applied and tested, email callbacks are configured, and device behavior is checked. Administrative account deletion remains a server-side/manual prerequisite; never place a service-role key in the app or repository.
 
 ## 4. User Interface
 
@@ -168,7 +169,7 @@ All screens should support accessible labels, scalable text, clear empty/error/l
 
 ### Optional synchronized data
 
-- Only explicitly opted-in account settings, profiles, schedules, and supported usage history.
+- Only explicitly opted-in account settings, profiles, schedules, and focus modes. Usage history and analytics are excluded from cloud sync.
 - Avoid uploading the full installed-app inventory by default; package lists and usage patterns are sensitive. Explain exactly what is synchronized and why.
 - Keep authentication/session material out of ordinary plaintext preference storage; evaluate Android Keystore-backed storage for tokens. Do not store passwords.
 
@@ -216,10 +217,10 @@ Planned toolchain:
 | 6. Implement profiles and focus mode | User-editable groups, one-tap activation, profile switching, deterministic precedence. | Profile/manual/schedule/timer interactions tested. | Ambiguous conflicting rules and usability. |
 | 7. Implement live network speed | Define speed source/scope, low-overhead sampling, foreground/notification behavior. | Device-wide measurement compared with reference and battery impact reviewed. | Counter availability, notification/FGS restrictions, power use. |
 | 8. Implement usage history and analytics | Evaluate Usage Access and VPN counters, persistence, summaries, charts, gaps and retention. | Accuracy/coverage documented on supported APIs and measured against references. | Delayed/aggregated system statistics, permission denial, UID changes. |
-| 9. Implement user accounts and cloud backup | Select backend/auth after privacy/cost review; add opt-in sync, recovery, conflict/deletion flows. | Security review and offline, backup/restore, deletion tests. | Sensitive data exposure, account recovery, sync conflicts, backend maintenance. |
+| 9. Implement user accounts and cloud backup | Supabase Auth + Postgres; opt-in settings/profile/schedule/focus backup, recovery, conflict resolution, and deletion policy. | Security review and offline, backup/restore, deletion tests. | Backend setup and policy execution, recovery configuration, deletion implementation. |
 | 10. Test, debug, optimize, and prepare the APK | Run device/API/OEM matrix, performance/battery/security/accessibility checks, release signing outside Git, prepare release documentation and APK. | All acceptance criteria met or explicit limitations agreed; reproducible signed release artifact. | Store policy, signing/key management, device variability. |
 
-The roadmap is sequential at major dependency gates: reliable block enforcement must be proven before presenting the rest of the product as controlling traffic. Account/cloud work depends on explicit privacy and backend decisions. No APK should be prepared until the project owner authorizes implementation/release work.
+The roadmap is sequential at major dependency gates: reliable block enforcement must be proven before presenting the rest of the product as controlling traffic. The backend and sync scope are selected; project configuration and server-side account deletion remain prerequisites for release. No APK should be prepared until the project owner authorizes implementation/release work.
 
 ## 9. Testing Plan
 
@@ -269,8 +270,8 @@ These questions remain open and must be resolved with evidence; difficult featur
 7. **Usage data source:** Prototype choice is `NetworkStatsManager` with explicit Usage Access, Wi-Fi/mobile collection windows, locally persisted summaries since the user starts collection, and visible-app UID grouping. Shared UIDs are grouped; unknown UIDs/other transports and missed windows are omitted and disclosed; catch-up is capped at 30 days. Validate attribution/coverage and revise if device tests show gaps.
 8. **Speed scope and cadence:** Prototype choice is aggregate device-wide `TrafficStats` counter deltas with a 2-second default (user options 1/2/5/10 seconds), explicitly approximate and not per-app. It uses a user-started `specialUse` foreground service and an ongoing notification; notification denial and Play Console eligibility remain platform/distribution validation items. Revisit cadence and battery impact after physical-device testing.
 9. **Rule precedence:** The prototype defines temporary block > active schedule > active profile > active focus group > manual selection; block wins when schedules conflict. Validate that this model is understandable and suitable through usability and device testing.
-10. **Cloud provider and account model:** Select backend, authentication/recovery, hosting region, cost, security controls, and account deletion policy before coding sync.
-11. **Privacy/retention:** Decide default local history retention, cloud sync opt-in, export/deletion, diagnostics, and whether any history is ever uploaded.
+10. **Cloud provider and account model:** Selected Supabase Auth + Postgres. Confirm hosting region/cost and configure the `appinternetcontrol://auth-callback` redirect; define and implement a server-side account deletion path before release.
+11. **Privacy/retention:** Cloud backup is opt-in and limited to settings, profiles, schedules, and focus modes; usage history/analytics remain local. Define retention, export/deletion, and diagnostic handling before release.
 12. **Lifecycle edge cases:** Define behavior after reboot, app force-stop/uninstall/update, VPN revocation, app install/removal, permission revocation, and another VPN becoming active.
 13. **Release/signing:** Define distribution, signing-key custody, privacy disclosures, store declarations, and release process outside source control.
 
