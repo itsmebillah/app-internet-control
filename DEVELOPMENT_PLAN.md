@@ -40,4 +40,4 @@
 
 ## Current status
 
-Only repository setup and planning documents are in scope at this stage. No application implementation has started.
+Project planning is complete. Stage 2 is the minimal native Kotlin project foundation: reproducible debug build configuration and a basic launch screen only. Product capabilities remain unimplemented and require separate approval before work begins. The selected-app VPN routing/packet-dropping proposal remains an unvalidated hypothesis, and API 29 is a provisional minimum pending physical-device validation.
