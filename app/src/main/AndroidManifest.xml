@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -33,6 +34,14 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+        <service
+            android:name=".SpeedMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-started live aggregate network speed display and ongoing notification." />
+        </service>
         <activity
             android:name=".ScheduleActivity"
             android:exported="false" />
@@ -47,6 +56,9 @@
             android:exported="false" />
         <activity
             android:name=".ChangeHistoryActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SpeedActivity"
             android:exported="false" />
         <receiver
             android:name=".ScheduleAlarmReceiver"

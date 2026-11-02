@@ -1,6 +1,6 @@
 ﻿# App Internet Control
 
-App Internet Control is a native Android prototype for managing network access for apps on a device. Feature 1 provides a launchable-app list, persistent per-app selections, and a consent-gated experimental VPN packet-discard implementation. Traffic blocking has not been verified on a physical device; the UI labels enforcement as unverified. No schedules, analytics, accounts, or cloud sync are implemented.
+App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, and an opt-in live speed estimate. Traffic blocking and background timing have not been verified on a physical device; the UI labels enforcement as unverified. Usage history/analytics, accounts, and cloud sync are not implemented.
 
 ## Approved Android levels
 
@@ -32,6 +32,10 @@ Profiles are stored locally and can be created, edited, deleted, activated, or d
 ## Change history
 
 The history screen records manual block/allow requests (including requests overridden by higher-priority rules) and effective per-app transitions caused by timers, schedules, profiles, and focus modes. Entries include local timestamp, source, and enforcement state. It stores up to 500 events on-device and provides a clear-history action. The first observed state is a baseline rather than an action. VPN-active events remain explicitly unverified, and pending/inactive states do not claim that traffic was blocked. History has no export control and is not synchronized.
+
+## Live network speed
+
+The speed screen estimates aggregate device-wide download/upload rates from Android `TrafficStats` byte-counter deltas. It is approximate, includes all interfaces, and is not per-app usage. Unsupported/reset counters display no value. Sampling is user-started and can be set to 1, 2, 5, or 10 seconds (2 seconds by default); stop it from the screen or ongoing notification. The ongoing indicator runs as a user-started `specialUse` foreground service. Android 13+ notification permission is requested; if denied, monitoring still runs but the notification may be hidden from the drawer. This foreground service type requires platform/distribution policy review before a Play release. Counter behavior, notification visibility, and battery impact need real-device testing.
 
 ## Prerequisites
 
