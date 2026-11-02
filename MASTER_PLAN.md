@@ -1,6 +1,6 @@
 ﻿# App Internet Control — Master Project Plan
 
-**Status:** Planning only. No Android application implementation has started.
+**Status:** Feature 1 prototype implemented; physical-device traffic-blocking validation is still pending.
 **Authoritative requirements:** This document is the single source of truth for product requirements, technical decisions, risks, and acceptance criteria. Update it when requirements or validated platform behavior changes.
 **Repository:** [itsmebillah/app-internet-control](https://github.com/itsmebillah/app-internet-control)
 
@@ -97,13 +97,15 @@ Use Kotlin with a layered, testable Android architecture:
 
 Android's `VpnService` requires explicit user consent through the system VPN flow. The VPN builder can establish either an allowed-application list or a disallowed-application list. With an allowed list, listed apps use the VPN and the rest use normal system networking; with a disallowed list, excluded apps use normal networking. Therefore, putting apps intended to be blocked into `addDisallowedApplication()` would bypass the VPN and would not block their network access. Android documents these routing semantics in its [VPN guide](https://developer.android.com/develop/connectivity/vpn) and [VpnService.Builder API](https://developer.android.com/reference/android/net/VpnService.Builder).
 
-**Unvalidated hypothesis:** route only selected apps intended to be blocked through a local VPN, then drop their packets. This approach has not been proven and is not implemented. Routing, packet attribution/filtering, allowed-app connectivity, and real-device behavior must be validated before treating it as an architecture decision. Any packet-processing stack must be evaluated for maintenance, licensing, security, performance, and protocol coverage before adoption.
+**Unvalidated hypothesis:** route only selected apps intended to be blocked through a local VPN, then drop their packets. The current prototype implements an allowlist VPN interface and discards packets read from its TUN descriptor, but this behavior has not been tested on a physical device and is not yet a validated product architecture. Routing, packet attribution/filtering, allowed-app connectivity, and real-device behavior must be validated before claiming reliable blocking. Any packet-processing stack must be evaluated for maintenance, licensing, security, performance, and protocol coverage before adoption.
+
+The prototype uses Android's user-consented `VpnService.prepare()` flow and declares the service with `BIND_VPN_SERVICE`. It requests `POST_NOTIFICATIONS` on Android 13+ to make the persistent VPN status visible in the notification drawer, but continues if that optional permission is declined. On Android 14+, the VPN service declares the `systemExempted` foreground-service type; this is permitted for VPN apps configured by the user through Android Settings. The UI always marks packet filtering as unverified until physical-device checks pass.
 
 A VPN excludes some traffic by design and Android/device behavior can affect routing. Research and test app-bound network sockets, VPN coexistence (only one user VPN can generally be active), always-on/lockdown settings, captive portals, tethering/system traffic, IPv6, DNS-over-HTTPS, QUIC, roaming, and service revocation. Do not offer a bypass path for apps the user expects blocked. If filtering is unavailable, report enforcement as unavailable and apply a documented fail-safe policy rather than claiming a block. Rebuild the VPN when app routing lists or relevant selection changes require it.
 
 ### App discovery and package visibility
 
-Android 11+ filters visibility of installed packages by default. The app-list requirement may need `<queries>` declarations or `QUERY_ALL_PACKAGES`. Google Play treats broad visibility as sensitive and approval-restricted, so distribution channel and policy eligibility must be resolved before choosing the manifest strategy. See [package visibility](https://developer.android.com/training/package-visibility) and [declaring visibility needs](https://developer.android.com/training/package-visibility/declaring). Prefer the narrowest viable visibility and test actual returned packages on supported Android versions.
+Android 11+ filters visibility of installed packages by default. The Feature 1 screen declares a launcher-intent `<queries>` filter and shows launchable apps visible through that query; it does not claim to list every installed package. It does not request `QUERY_ALL_PACKAGES`. If broader inventory is required later, Google Play treats this permission as sensitive and approval-restricted. See [package visibility](https://developer.android.com/training/package-visibility) and [declaring visibility needs](https://developer.android.com/training/package-visibility/declaring). Test actual returned packages on supported Android versions.
 
 ### Speed and usage measurement
 
@@ -204,6 +206,13 @@ Planned toolchain:
 The roadmap is sequential at major dependency gates: reliable block enforcement must be proven before presenting the rest of the product as controlling traffic. Account/cloud work depends on explicit privacy and backend decisions. No APK should be prepared until the project owner authorizes implementation/release work.
 
 ## 9. Testing Plan
+
+### Pending physical-device validation
+
+- API 29, API 34, and API 37/current Android; at least one real phone and different OEMs where practical.
+- On Wi-Fi and mobile data where available, verify a selected app cannot reach test endpoints and unselected apps retain access. Exercise IPv4 and IPv6, DNS, app-bound sockets, and switching networks.
+- Verify VPN consent decline/revocation, another VPN replacing this one, service termination, and that the UI never reports a block when this VPN is inactive.
+- Confirm the persistent status notification behavior with notification permission allowed and denied.
 
 - **Build and compilation:** Debug/release variants, Gradle Wrapper reproducibility, clean build, dependency/license review, and supported JDK/AGP combinations.
 - **Physical devices:** Representative Android versions, API levels, vendors, Wi-Fi/cellular chipsets, and at least one real phone; emulator testing supplements but does not replace network enforcement testing.

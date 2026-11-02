@@ -40,4 +40,4 @@
 
 ## Current status
 
-Project planning is complete. Stage 2 is the minimal native Kotlin project foundation: reproducible debug build configuration and a basic launch screen only. Product capabilities remain unimplemented and require separate approval before work begins. The selected-app VPN routing/packet-dropping proposal remains an unvalidated hypothesis, and API 29 is a provisional minimum pending physical-device validation.
+Feature 1 now has a launchable-app list, locally persisted per-app selections, and a consent-gated prototype VPN that routes selected packages to a local interface and discards its packets. Selection and routing-policy unit tests and the debug build pass. No physical Android device is connected, so traffic blocking remains unverified and is explicitly labeled as a prototype in the UI. API 29 remains provisional pending device validation. No schedules, focus modes, analytics, accounts, or sync have been implemented.

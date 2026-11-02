@@ -1,6 +1,6 @@
 ﻿# App Internet Control
 
-App Internet Control is a planned native Android application for managing internet access for apps installed on a device. This repository currently contains only the minimal Kotlin project foundation and a basic launch screen; no product controls are implemented.
+App Internet Control is a native Android prototype for managing network access for apps on a device. Feature 1 provides a launchable-app list, persistent per-app selections, and a consent-gated experimental VPN packet-discard implementation. Traffic blocking has not been verified on a physical device; the UI labels enforcement as unverified. No schedules, analytics, accounts, or cloud sync are implemented.
 
 ## Approved Android levels
 
@@ -9,7 +9,11 @@ App Internet Control is a planned native Android application for managing intern
 - Target SDK: API 37
 - Initial physical-device test matrix: API 29, API 34, and API 37/current Android; test Wi-Fi and mobile data where available and multiple OEMs when practical.
 
-The idea of routing selected blocked apps through `VpnService` and dropping their traffic remains an unvalidated hypothesis, not an implemented or proven architecture.
+Routing selected apps through `VpnService` and dropping their traffic is implemented as a prototype, but remains an unvalidated hypothesis until real-device tests pass.
+
+## Installed-app list and prototype blocking
+
+The list uses Android's launcher-intent package-visibility query, so it shows launchable apps, not necessarily every installed package. The app does not request `QUERY_ALL_PACKAGES`. Per-app selections are stored locally on the device. Enabling them asks Android for VPN consent. On Android 13 and newer the app asks for notification permission to show the ongoing VPN status in the notification drawer, but continues if that optional permission is declined. The prototype routes only selected visible packages through a local VPN interface and discards packets read there. Until tested on physical devices, this must not be treated as verified traffic blocking.
 
 ## Prerequisites
 

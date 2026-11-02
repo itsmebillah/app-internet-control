@@ -1,4 +1,20 @@
 ﻿<resources>
     <string name="app_name">App Internet Control</string>
     <string name="launch_message">App Internet Control</string>
+    <string name="vpn_session_name">App Internet Control prototype filter</string>
+    <string name="vpn_notification_channel">App blocking VPN</string>
+    <string name="vpn_notification_active">Prototype VPN active; filtering is not device-verified.</string>
+    <string name="prototype_warning">Prototype: VPN packet filtering has not been verified on a physical device. A selected app may not be fully blocked.</string>
+    <string name="search_apps">Search apps</string>
+    <string name="no_apps_found">No launchable apps found.</string>
+    <string name="app_icon_accessibility">Icon for %1$s</string>
+    <string name="block_app_accessibility">Select %1$s for internet blocking</string>
+    <string name="block_control_label">Block</string>
+    <string name="enable_selected_blocks">Enable selected blocks</string>
+    <string name="enforcement_status_accessibility">VPN enforcement status</string>
+    <string name="status_no_selection">No apps selected for blocking by App Internet Control.</string>
+    <string name="status_saved_not_active">Selection saved. VPN is not active; selected apps are not being blocked.</string>
+    <string name="status_active_unverified">VPN interface is active and discards selected-app packets. Traffic blocking is not verified on this device.</string>
+    <string name="vpn_consent_declined">VPN consent was declined. Your selections are saved, but traffic is not blocked.</string>
+    <string name="notification_permission_optional">Notifications are off; Android may show the VPN only in its active-apps view.</string>
 </resources>
