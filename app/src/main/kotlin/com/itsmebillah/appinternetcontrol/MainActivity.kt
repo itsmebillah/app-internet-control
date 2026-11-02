@@ -26,6 +26,7 @@ class MainActivity : Activity() {
     private val selectionStore by lazy { AppSelectionStore(this) }
     private lateinit var statusView: TextView
     private lateinit var enableButton: Button
+    private lateinit var schedulesButton: Button
     private lateinit var searchField: EditText
     private lateinit var appRows: LinearLayout
     private var installedApps: List<InstalledApp> = emptyList()
@@ -138,6 +139,12 @@ class MainActivity : Activity() {
         }
         content.addView(enableButton)
 
+        schedulesButton = Button(this).apply {
+            text = getString(R.string.manage_schedules)
+            setOnClickListener { startActivity(Intent(this@MainActivity, ScheduleActivity::class.java)) }
+        }
+        content.addView(schedulesButton)
+
         val scrollView = ScrollView(this)
         appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView.addView(appRows)
@@ -170,6 +177,8 @@ class MainActivity : Activity() {
         if (!::appRows.isInitialized) return
         appRows.removeAllViews()
         val selection = selectionStore.read()
+        val activeSchedules = BlockScheduleStore(this).read()
+            .filter { ScheduleEvaluator.isActive(it, java.time.Instant.now(), java.time.ZoneId.systemDefault()) }
         val query = if (::searchField.isInitialized) searchField.text.toString().trim() else ""
         val matchingApps = installedApps.filter {
             query.isBlank() || it.displayName.contains(query, ignoreCase = true) ||
@@ -212,7 +221,13 @@ class MainActivity : Activity() {
                 textSize = 16f
             })
             labels.addView(TextView(this).apply {
-                text = app.packageName
+                val appActions = activeSchedules.filter { app.packageName in it.packageNames }.map { it.action }
+                val scheduleState = when {
+                    ScheduleAction.BLOCK in appActions -> getString(R.string.app_schedule_block)
+                    ScheduleAction.ALLOW in appActions -> getString(R.string.app_schedule_allow)
+                    else -> getString(if (app.packageName in selection.packageNames) R.string.app_manual_block else R.string.app_manual_allow)
+                }
+                text = "${app.packageName} · $scheduleState"
                 textSize = 12f
             })
             row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -235,9 +250,9 @@ class MainActivity : Activity() {
         selectionStore.write(updated)
         renderStatus()
 
-        if (updated.packageNames.isEmpty()) {
+        if (ScheduleCoordinator.effectiveBlockedPackages(this).isEmpty()) {
             stopService(Intent(this, AppBlockingVpnService::class.java))
-        } else if (shouldBlock || AppBlockingVpnService.isVpnActive) {
+        } else {
             beginEnableFlow()
         }
     }
@@ -268,10 +283,9 @@ class MainActivity : Activity() {
     }
 
     private fun startOrUpdateVpn() {
-        val visiblePackages = installedApps.mapTo(mutableSetOf()) { it.packageName }
         val packagesToRoute = VpnRoutingPolicy.selectedInstalledPackages(
-            selection = selectionStore.read(),
-            installedPackages = visiblePackages,
+            selection = AppSelection.of(ScheduleCoordinator.effectiveBlockedPackages(this)),
+            installedPackages = installedApps.mapTo(mutableSetOf()) { it.packageName },
             ownPackage = packageName,
         )
         if (packagesToRoute.isEmpty()) {
@@ -292,12 +306,15 @@ class MainActivity : Activity() {
     private fun renderStatus() {
         if (!::statusView.isInitialized || !::enableButton.isInitialized) return
         val selection = selectionStore.read()
+        val effectivePackages = ScheduleCoordinator.effectiveBlockedPackages(this)
         statusView.text = when {
-            selection.packageNames.isEmpty() -> getString(R.string.status_no_selection)
             AppBlockingVpnService.isVpnActive -> getString(R.string.status_active_unverified)
-            else -> getString(R.string.status_saved_not_active)
+            effectivePackages.isNotEmpty() -> getString(R.string.status_effective_not_active)
+            selection.packageNames.isNotEmpty() -> getString(R.string.status_schedule_allows)
+            else -> getString(R.string.status_no_selection)
         }
-        enableButton.isEnabled = selection.packageNames.isNotEmpty()
+        enableButton.isEnabled = effectivePackages.isNotEmpty()
+        enableButton.text = getString(R.string.enable_current_blocks)
         renderAppRows()
     }
 

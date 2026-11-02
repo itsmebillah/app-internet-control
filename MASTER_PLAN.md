@@ -1,6 +1,6 @@
 ﻿# App Internet Control — Master Project Plan
 
-**Status:** Feature 1 prototype implemented; physical-device traffic-blocking validation is still pending.
+**Status:** Features 1 and 2 are implemented as prototypes; physical-device VPN and alarm validation is still pending.
 **Authoritative requirements:** This document is the single source of truth for product requirements, technical decisions, risks, and acceptance criteria. Update it when requirements or validated platform behavior changes.
 **Repository:** [itsmebillah/app-internet-control](https://github.com/itsmebillah/app-internet-control)
 
@@ -119,6 +119,8 @@ Android 11+ filters visibility of installed packages by default. The Feature 1 s
 Persist schedule definitions and compute the next state transition. Use `AlarmManager` for user-visible transition timing if justified, and use `WorkManager` for deferrable persistence/reconciliation tasks rather than precise minute-level transitions. Android may defer inexact alarms due to Doze and battery restrictions; WorkManager periodic work has a minimum 15-minute interval and flexible execution. Exact alarms require special access on relevant Android versions and may not be granted by default. See [Android alarm guidance](https://developer.android.com/develop/background-work/services/alarms) and [exact alarm changes](https://developer.android.com/about/versions/14/changes/schedule-exact-alarms).
 
 Recalculate after boot, time/time-zone changes, app updates, permission revocation, and device state changes where supported. Plan for force-stop (scheduled work is not a promise of execution while the app is stopped), process death, battery saver, OEM restrictions, and the need to explain exact-alarm access. Do not promise perfectly reliable schedule execution on every device without test evidence.
+
+The current implementation persists one-time and weekly weekday app rules, evaluates local device wall time (including overnight windows and `java.time` daylight-saving resolution), and arms the next boundary using inexact `AlarmManager.setAndAllowWhileIdle`. It does not request exact-alarm access. An active schedule overrides the manual per-app selection for apps named by that rule; when active schedules conflict for one app, **block wins**. Boot, clock/time-zone changes, and app replacement re-evaluate schedules. Android may delay alarms or deny a background VPN foreground-service start; those cases remain pending and must not be shown as enforced. These semantics are prototype decisions and need usability/device validation.
 
 ### Local storage and cloud synchronization
 
@@ -249,10 +251,10 @@ These questions remain open and must be resolved with evidence; difficult featur
 3. **Fail-safe behavior:** If the VPN stops or is revoked, should the UI prioritize normal connectivity or prevent unfiltered traffic where Android's lockdown support and user choice allow it? Define behavior and communicate consequences clearly.
 4. **Distribution channel and app discovery:** Play Store or another channel? Does the app-list core use case qualify for `QUERY_ALL_PACKAGES` under current Play policy, or can narrower queries satisfy it?
 5. **Android support range (approved initial values):** `minSdk 29` (provisional pending real-device validation), `compileSdk 37`, and `targetSdk 37`. Initial physical-device matrix: API 29, API 34, and API 37/current Android; test Wi-Fi and mobile data where available and include different OEM devices when practical. API 29 remains provisional until VPN filtering and scheduling behavior are validated on devices.
-6. **Schedule precision:** What delay is acceptable? Which transitions justify exact-alarm special access? What should the app do when access is denied or battery/OEM rules defer work?
+6. **Schedule precision:** The prototype uses inexact alarms and discloses possible delay. Decide whether exact-alarm special access is needed and set an acceptable transition tolerance after device testing.
 7. **Usage data source:** Usage Access, VPN-observed counters, or both? Define accuracy, attribution, collection start, usage reset/calendar rules, shared UIDs, and user-facing gaps.
 8. **Speed scope and cadence:** Device-wide or only VPN-observed traffic? What refresh rate and battery budget are acceptable? What Android notification and foreground-service model is appropriate for the final target API?
-9. **Rule precedence:** Define conflict resolution for manual controls, schedules, temporary timers, focus modes, and profiles.
+9. **Rule precedence:** The prototype defines active schedules over manual selections and uses block-wins for overlapping schedules. Define how temporary timers, focus modes, and profiles combine with this before those features ship.
 10. **Cloud provider and account model:** Select backend, authentication/recovery, hosting region, cost, security controls, and account deletion policy before coding sync.
 11. **Privacy/retention:** Decide default local history retention, cloud sync opt-in, export/deletion, diagnostics, and whether any history is ever uploaded.
 12. **Lifecycle edge cases:** Define behavior after reboot, app force-stop/uninstall/update, VPN revocation, app install/removal, permission revocation, and another VPN becoming active.

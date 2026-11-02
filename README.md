@@ -15,6 +15,10 @@ Routing selected apps through `VpnService` and dropping their traffic is impleme
 
 The list uses Android's launcher-intent package-visibility query, so it shows launchable apps, not necessarily every installed package. The app does not request `QUERY_ALL_PACKAGES`. Per-app selections are stored locally on the device. Enabling them asks Android for VPN consent. On Android 13 and newer the app asks for notification permission to show the ongoing VPN status in the notification drawer, but continues if that optional permission is declined. The prototype routes only selected visible packages through a local VPN interface and discards packets read there. Until tested on physical devices, this must not be treated as verified traffic blocking.
 
+## Schedules
+
+Schedules support one-time dates and weekly weekday rules with local start/end times and selected launchable apps. They survive app restarts and are re-evaluated after boot, clock/time-zone changes, app replacement, and scheduled boundaries. An active schedule overrides the manual selection for its apps; when active rules conflict, blocking wins. The scheduler uses inexact Android alarms, which can be delayed, and Android may prevent a background VPN service start. The screen reports pending/inactive status instead of claiming enforcement. Exact-alarm access is not requested.
+
 ## Prerequisites
 
 - Android Studio with a compatible JDK. This foundation uses Android Studio's bundled JBR 25; Gradle 9.6 supports running on JDK 25 and AGP 9.4 requires JDK 17 or newer.

@@ -75,8 +75,9 @@ class AppBlockingVpnService : VpnService() {
         tunnel = newTunnel
         discardingPackets = true
         isVpnActive = true
-        notifyStatusChanged()
+        activePackageNames = packagesToRoute.toSet()
         startDiscardReader(newTunnel, currentGeneration)
+        notifyStatusChanged()
     }
 
     private fun startDiscardReader(descriptor: ParcelFileDescriptor, generation: Int) {
@@ -93,6 +94,7 @@ class AppBlockingVpnService : VpnService() {
             } finally {
                 if (discardingPackets && generation == readerGeneration) {
                     isVpnActive = false
+                    activePackageNames = emptySet()
                     notifyStatusChanged()
                     stopSelf()
                 }
@@ -105,6 +107,7 @@ class AppBlockingVpnService : VpnService() {
 
     private fun stopFiltering() {
         isVpnActive = false
+        activePackageNames = emptySet()
         stopTunnelReader()
         tunnel?.close()
         tunnel = null
@@ -169,6 +172,10 @@ class AppBlockingVpnService : VpnService() {
 
         @Volatile
         var isVpnActive: Boolean = false
+            private set
+
+        @Volatile
+        var activePackageNames: Set<String> = emptySet()
             private set
 
         private const val CHANNEL_ID = "app_blocking_vpn"
