@@ -240,7 +240,8 @@ class MainActivity : Activity() {
         if (matchingApps.isEmpty()) {
             appRows.addView(TextView(this).apply {
                 text = getString(R.string.no_apps_found)
-                setPadding(0, 24, 0, 24)
+                val padding = (24 * resources.displayMetrics.density).toInt()
+                setPadding(0, padding, 0, padding)
             })
             return
         }
@@ -297,7 +298,7 @@ class MainActivity : Activity() {
             appRows.addView(row)
             appRows.addView(View(this).apply {
                 setBackgroundColor(0x22000000)
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, resources.displayMetrics.density.toInt().coerceAtLeast(1)))
         }
     }
 

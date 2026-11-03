@@ -56,8 +56,10 @@ create policy "app cloud owner access" on public.app_cloud_focus_modes
     for all to authenticated using ((select auth.uid()) = user_id)
     with check ((select auth.uid()) = user_id);
 
+-- Remove any default/PUBLIC grants first, then add only the four operations
+-- required by the client. In particular, authenticated must not retain TRUNCATE.
 revoke all on public.app_cloud_settings, public.app_cloud_profiles,
-    public.app_cloud_schedules, public.app_cloud_focus_modes from anon;
+    public.app_cloud_schedules, public.app_cloud_focus_modes from public, anon, authenticated;
 grant select, insert, update, delete on public.app_cloud_settings,
     public.app_cloud_profiles, public.app_cloud_schedules, public.app_cloud_focus_modes to authenticated;
 
@@ -104,5 +106,5 @@ begin
 end;
 $$;
 
-revoke all on function public.app_replace_my_backup(jsonb, jsonb, jsonb, jsonb) from public, anon;
+revoke all on function public.app_replace_my_backup(jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated;
 grant execute on function public.app_replace_my_backup(jsonb, jsonb, jsonb, jsonb) to authenticated;

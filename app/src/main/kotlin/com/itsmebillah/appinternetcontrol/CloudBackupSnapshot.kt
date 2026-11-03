@@ -46,10 +46,23 @@ object CloudBackupSnapshot {
             .put("focusModes", JSONObject().put("items", focusRows))
     }
 
+    fun validate(snapshot: JSONObject) {
+        prepareRestore(snapshot)
+    }
+
     fun restore(context: Context, snapshot: JSONObject) {
+        val restored = prepareRestore(snapshot)
+        AppSelectionStore(context).write(restored.selection)
+        UserProfileStore(context).replaceAll(restored.profiles, restored.activeProfileId)
+        BlockScheduleStore(context).write(restored.schedules)
+        FocusModeStore(context).replaceAll(restored.focusModes, restored.activeFocusModeId)
+        ScheduleCoordinator.reconcile(context)
+    }
+
+    internal fun prepareRestore(snapshot: JSONObject): BackupRestorePlan {
         val settings = snapshot.optJSONObject("settings") ?: JSONObject()
         require(settings.optInt("backupSchemaVersion") == BACKUP_SCHEMA_VERSION) {
-            "This cloud backup uses an unsupported data format. Local data was not changed."
+            "This backup uses an unsupported data format. Local data was not changed."
         }
         val restoredSelection = AppSelection.of(settings.optJSONArray("blockedPackages").toStringSet())
 
@@ -86,12 +99,24 @@ object CloudBackupSnapshot {
         }
         val activeFocusModeId = settings.optString("activeFocusModeId").takeIf { it.isNotBlank() && it != "null" }
 
-        AppSelectionStore(context).write(restoredSelection)
-        UserProfileStore(context).replaceAll(restoredProfiles, activeProfileId)
-        BlockScheduleStore(context).write(restoredSchedules)
-        FocusModeStore(context).replaceAll(restoredModes, activeFocusModeId)
-        ScheduleCoordinator.reconcile(context)
+        require(activeProfileId == null || restoredProfiles.any { it.id == activeProfileId }) {
+            "Backup references a profile that is missing. Local data was not changed."
+        }
+        require(activeFocusModeId == null || restoredModes.any { it.id == activeFocusModeId }) {
+            "Backup references a focus mode that is missing. Local data was not changed."
+        }
+        return BackupRestorePlan(restoredSelection, restoredProfiles, activeProfileId,
+            restoredSchedules, restoredModes, activeFocusModeId)
     }
+
+    internal data class BackupRestorePlan(
+        val selection: AppSelection,
+        val profiles: List<UserProfile>,
+        val activeProfileId: String?,
+        val schedules: List<BlockSchedule>,
+        val focusModes: List<FocusMode>,
+        val activeFocusModeId: String?,
+    )
 
     private fun JSONArray?.orEmptyArray() = this ?: JSONArray()
 

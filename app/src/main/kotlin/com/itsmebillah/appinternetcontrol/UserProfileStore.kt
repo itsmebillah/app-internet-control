@@ -5,11 +5,30 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-class UserProfileStore(context: Context) {
-    private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+internal interface ProfilePersistence {
+    fun readProfiles(): String?
+    fun writeProfiles(value: String)
+    fun readActiveId(): String?
+    fun writeActiveId(value: String?)
+}
+
+class UserProfileStore internal constructor(private val persistence: ProfilePersistence) {
+    constructor(context: Context) : this(SharedPreferencesProfilePersistence(context))
+
+    private class SharedPreferencesProfilePersistence(context: Context) : ProfilePersistence {
+        private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+        override fun readProfiles() = preferences.getString(PROFILES_KEY, null)
+        override fun writeProfiles(value: String) {
+            check(preferences.edit().putString(PROFILES_KEY, value).commit()) { "Could not save profiles on this device." }
+        }
+        override fun readActiveId() = preferences.getString(ACTIVE_PROFILE_KEY, null)
+        override fun writeActiveId(value: String?) {
+            check(preferences.edit().putString(ACTIVE_PROFILE_KEY, value).commit()) { "Could not save the active profile." }
+        }
+    }
 
     fun read(): List<UserProfile> {
-        val encoded = preferences.getString(PROFILES_KEY, null) ?: return emptyList()
+        val encoded = persistence.readProfiles() ?: return emptyList()
         return runCatching {
             val array = JSONArray(encoded)
             buildList {
@@ -21,7 +40,7 @@ class UserProfileStore(context: Context) {
     }
 
     fun activeProfile(): UserProfile? {
-        val id = preferences.getString(ACTIVE_PROFILE_KEY, null) ?: return null
+        val id = persistence.readActiveId() ?: return null
         return read().firstOrNull { it.id == id }
     }
 
@@ -36,12 +55,12 @@ class UserProfileStore(context: Context) {
 
     fun activate(id: String?) {
         val validId = id?.takeIf { candidate -> read().any { it.id == candidate } }
-        preferences.edit().putString(ACTIVE_PROFILE_KEY, validId).apply()
+        persistence.writeActiveId(validId)
     }
 
     fun delete(id: String) {
         write(read().filterNot { it.id == id })
-        if (preferences.getString(ACTIVE_PROFILE_KEY, null) == id) activate(null)
+        if (persistence.readActiveId() == id) activate(null)
     }
 
     private fun write(profiles: List<UserProfile>) {
@@ -54,7 +73,7 @@ class UserProfileStore(context: Context) {
                 put("allowed", JSONArray(profile.allowedPackageNames.sorted()))
             })
         }
-        preferences.edit().putString(PROFILES_KEY, array.toString()).apply()
+        persistence.writeProfiles(array.toString())
     }
 
     private fun decode(json: JSONObject): UserProfile = UserProfile(

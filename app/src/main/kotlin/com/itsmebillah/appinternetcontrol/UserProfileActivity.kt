@@ -92,7 +92,8 @@ class UserProfileActivity : Activity() {
         content.addView(Button(this).apply {
             text = getString(R.string.deactivate_profile)
             setOnClickListener {
-                profileStore.activate(null)
+                runCatching { profileStore.activate(null) }
+                    .onFailure { Toast.makeText(this@UserProfileActivity, "Could not deactivate profile: ${it.message ?: "save failed"}", Toast.LENGTH_LONG).show(); return@setOnClickListener }
                 ScheduleCoordinator.reconcile(this@UserProfileActivity)
                 renderProfiles()
                 renderStatus()
@@ -192,9 +193,13 @@ class UserProfileActivity : Activity() {
             Toast.makeText(this, R.string.profile_overlapping_apps, Toast.LENGTH_LONG).show()
             return
         }
-        profileStore.save(profile)
+        runCatching { profileStore.save(profile) }
+            .onFailure { Toast.makeText(this, "Profile could not be saved: ${it.message ?: "storage error"}", Toast.LENGTH_LONG).show(); return }
         editingProfileId = null
         profileName.text.clear()
+        blockedPackages.clear()
+        allowedPackages.clear()
+        updateSelectionButtons()
         renderProfiles()
         if (profileStore.activeProfile()?.id == profile.id) {
             ScheduleCoordinator.reconcile(this)
@@ -212,7 +217,8 @@ class UserProfileActivity : Activity() {
     }
 
     private fun activateProfile(profile: UserProfile) {
-        profileStore.activate(profile.id)
+        runCatching { profileStore.activate(profile.id) }
+            .onFailure { Toast.makeText(this, "Profile could not be activated: ${it.message ?: "storage error"}", Toast.LENGTH_LONG).show(); return }
         ScheduleCoordinator.reconcile(this)
         renderProfiles()
         renderStatus()
@@ -240,11 +246,25 @@ class UserProfileActivity : Activity() {
     }
 
     private fun deleteProfile(profile: UserProfile) {
-        profileStore.delete(profile.id)
-        if (editingProfileId == profile.id) editingProfileId = null
-        ScheduleCoordinator.reconcile(this)
-        renderProfiles()
-        renderStatus()
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.delete_profile))
+            .setMessage("Delete “${profile.name}”? Other manual, scheduled, focus, and temporary rules will remain unchanged.")
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.delete_profile) { _, _ ->
+                runCatching { profileStore.delete(profile.id) }
+                    .onFailure { Toast.makeText(this, "Profile could not be deleted: ${it.message ?: "storage error"}", Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                if (editingProfileId == profile.id) {
+                    editingProfileId = null
+                    profileName.text.clear()
+                    blockedPackages.clear()
+                    allowedPackages.clear()
+                    updateSelectionButtons()
+                }
+                ScheduleCoordinator.reconcile(this)
+                renderProfiles()
+                renderStatus()
+            }
+            .show()
     }
 
     private fun renderProfiles() {

@@ -274,6 +274,7 @@ These questions remain open and must be resolved with evidence; difficult featur
 11. **Privacy/retention:** Cloud backup is opt-in and limited to settings, profiles, schedules, and focus modes; usage history/analytics remain local. Define retention, export/deletion, and diagnostic handling before release.
 12. **Lifecycle edge cases:** Define behavior after reboot, app force-stop/uninstall/update, VPN revocation, app install/removal, permission revocation, and another VPN becoming active.
 13. **Release/signing:** Define distribution, signing-key custody, privacy disclosures, store declarations, and release process outside source control.
+14. **Automatic Supabase backup:** Use Supabase Auth and only the public publishable/anon client key in Android. Require sign-in and a separate explicit automatic-backup opt-in before scheduled upload. Store app settings, profiles, schedules, and focus modes in the configured Supabase project; exclude usage history, analytics, passwords, auth tokens, and device permissions. Enable RLS on every table with authenticated owner-only policies based on `auth.uid()`. Use an invoker-rights transactional write RPC and an owner-scoped single-statement read. Preserve conflict-aware manual sync: automatic sync may upload local-only changes only while the cloud still matches the last-sync baseline; report conflicts without overwriting another device's data. Verify migrations, pgTAP policies, session expiry, no-network handling, and restore on a configured project/device before treating this as reliable.
 
 ### Known platform constraints
 
@@ -301,6 +302,7 @@ The project is complete only when each requested capability is implemented, test
 - Per-app usage history is persisted and reviewable with daily/monthly/lifetime summaries, source/coverage labels, and known accuracy gaps disclosed.
 - User-created profiles and focus groups can be created, edited, deleted, switched, and applied with tested precedence.
 - Accounts can authenticate/logout and user-approved backup can be restored; core local controls work offline; export/deletion and security tests pass.
+- User-authorized automatic Supabase backups can be disabled, are isolated by Auth/RLS per account, preserve local controls offline, expose last-success/errors, and refuse to overwrite concurrent remote changes; credentials and usage history are excluded.
 - Android project builds reproducibly with the committed Gradle Wrapper, and physical-device tests pass for the documented support matrix.
 - No secrets are committed; privacy, permissions, data retention, support range, and release behavior are documented.
 

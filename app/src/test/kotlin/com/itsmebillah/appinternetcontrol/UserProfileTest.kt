@@ -1,6 +1,8 @@
 ﻿package com.itsmebillah.appinternetcontrol
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.time.DayOfWeek
 import java.time.Instant
@@ -10,6 +12,59 @@ import java.time.ZoneId
 class UserProfileTest {
     private val now = Instant.parse("2026-11-02T09:30:00Z")
     private val zone = ZoneId.of("UTC")
+
+    @Test
+    fun profileCreateEditActivateDeletePersistsAndDoesNotTouchOtherRuleSources() {
+        val persistence = FakeProfilePersistence()
+        val store = UserProfileStore(persistence)
+        val original = UserProfile("work", "Work", setOf("blocked.app"), setOf("allowed.app"))
+        store.save(original)
+        store.activate(original.id)
+
+        // A new store instance represents an app restart.
+        val restarted = UserProfileStore(persistence)
+        assertEquals(original, restarted.activeProfile())
+        val edited = original.copy(name = "Work v2", allowedPackageNames = setOf("manual.app"))
+        restarted.save(edited)
+        assertEquals(listOf(edited), restarted.read())
+        assertEquals(edited, restarted.activeProfile())
+
+        val schedule = BlockSchedule("schedule", "Scheduled", setOf("scheduled.app"), ScheduleAction.BLOCK,
+            LocalTime.of(9, 0), LocalTime.of(10, 0), setOf(DayOfWeek.MONDAY))
+        val timer = TemporaryBlock(packageNames = setOf("temporary.app"), startedAt = now.minusSeconds(1), expiresAt = now.plusSeconds(30))
+        val effective = EffectiveBlockResolver.resolve(
+            manualBlockedPackages = setOf("manual.app", "other.manual"),
+            activeProfile = restarted.activeProfile(),
+            schedules = listOf(schedule),
+            temporaryBlocks = listOf(timer),
+            now = now,
+            zone = zone,
+        )
+        assertEquals(setOf("blocked.app", "other.manual", "scheduled.app", "temporary.app"), effective)
+
+        restarted.delete(edited.id)
+        assertNull(restarted.activeProfile())
+        assertEquals(emptyList<UserProfile>(), restarted.read())
+        val afterDelete = EffectiveBlockResolver.resolve(
+            manualBlockedPackages = setOf("manual.app", "other.manual"),
+            schedules = listOf(schedule),
+            temporaryBlocks = listOf(timer),
+            now = now,
+            zone = zone,
+        )
+        assertEquals(setOf("manual.app", "other.manual", "scheduled.app", "temporary.app"), afterDelete)
+    }
+
+    @Test
+    fun activatingAnotherProfileLeavesExistingSchedulesAndTemporaryRecordsIndependent() {
+        val store = UserProfileStore(FakeProfilePersistence())
+        store.save(UserProfile("one", "One", setOf("a.app"), emptySet()))
+        store.save(UserProfile("two", "Two", setOf("b.app"), emptySet()))
+        store.activate("one")
+        store.activate("two")
+        assertEquals("two", store.activeProfile()?.id)
+        assertNotNull(store.read().firstOrNull { it.id == "one" })
+    }
 
     @Test
     fun activeProfileOverridesFocusAndManualForItsAllowList() {
@@ -91,5 +146,14 @@ class UserProfileTest {
                 zone = zone,
             ),
         )
+    }
+
+    private class FakeProfilePersistence : ProfilePersistence {
+        private var profiles: String? = null
+        private var active: String? = null
+        override fun readProfiles() = profiles
+        override fun writeProfiles(value: String) { profiles = value }
+        override fun readActiveId() = active
+        override fun writeActiveId(value: String?) { active = value }
     }
 }

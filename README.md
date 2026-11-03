@@ -1,6 +1,6 @@
 ﻿# App Internet Control
 
-App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, local usage history, usage analytics, and a Supabase account/backup prototype. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Supabase authentication and backup are not verified until configured against the project.
+App Internet Control is a native Android prototype for managing network access for apps on a device. It currently includes a launchable-app list, persistent block selections, a consent-gated experimental VPN packet-discard service, schedules, temporary blocks, focus modes, local user profiles, local change history, opt-in live speed, local usage history, usage analytics, and Supabase Auth/cloud-backup support. Traffic blocking and background timing/statistics have not been verified on physical devices; the UI labels enforcement as unverified. Supabase networking is not verified until configured and tested against the project.
 
 ## Approved Android levels
 
@@ -31,7 +31,7 @@ Focus modes are locally stored named groups of launchable apps. Activate one gro
 
 ## User profiles
 
-Profiles are stored locally and can be created, edited, deleted, activated, or deactivated. A profile defines explicit blocked and allowed app sets, with Work, Study, and Sleep offered as editable name suggestions. One profile can be active at a time. Effective state precedence is temporary block > active schedule > active profile > active focus mode > manual selection; blocking wins when schedules conflict. Profiles represent local rules only and do not confirm that VPN traffic is being blocked.
+Profiles are stored locally and can be created, edited, deleted, activated, or deactivated. A profile owns only its explicit blocked and allowed app package sets; the active profile ID is stored separately. Switching or deleting a profile does not edit manual selections, schedules, focus modes, or temporary-block records. Effective state precedence is temporary block > active schedule > active profile > active focus mode > manual selection; blocking wins when schedules conflict. Profile allow rules remove matching lower-priority manual/focus blocks while the profile is active, and those lower-priority records take effect again when the profile is deactivated or deleted. Profiles represent local rules only and do not confirm that VPN traffic is being blocked.
 
 ## Change history
 
@@ -55,11 +55,13 @@ Analytics ranks the top visible apps/UID groups for today, this month, or all ca
 
 ## Accounts and cloud backup (Feature 10 prototype)
 
-The account screen uses Supabase Auth REST endpoints with the Android client's public publishable key only. Session tokens are encrypted with AES-GCM using a key held by Android Keystore. Create-account, sign-in, sign-out, and password-recovery requests are implemented but have not been tested against a configured Supabase project. Core app data remains local when signed out or offline.
+The account screen uses Supabase Auth REST endpoints with the Android client's public publishable key only. Session tokens are encrypted with AES-GCM using a key held by Android Keystore. Create-account, sign-in, sign-out, and password-recovery requests are implemented but have not been tested against a configured Supabase project. Expired/revoked sessions show a sign-in-again error while core app data remains local and usable offline.
 
-Cloud backup is off by default and is manual after explicit opt-in. It includes selected app package IDs and active selection metadata, profiles, schedules, and focus modes. It never includes usage history, analytics, passwords, VPN consent, or Android special-access grants. Each sync compares local and cloud snapshots and asks the user which copy should replace the other; it never silently merges or overwrites. Backup format version 1 is stored in settings. Restore re-evaluates schedules locally and cannot restore system permissions.
+Manual cloud backup is off by default and requires explicit opt-in. It includes selected app package IDs and active selection metadata, profiles, schedules, and focus modes. It never includes usage history, analytics, passwords, auth tokens, VPN consent, or Android special-access grants. Each manual sync compares local and cloud snapshots and asks which copy should replace the other. Restore validates backup schema version 1 before writing and re-evaluates schedules locally; Android permissions are not restored.
 
-To configure local development, copy `supabase.properties.example` to the repository root as `supabase.properties` and fill in the HTTPS project URL and publishable key from Supabase project API settings. The local file is gitignored. Do not put a `service_role` key, password, or token there. The project URL was not present in this checkout, so account networking currently reports **Not configured**. In Supabase, apply `supabase/migrations/202611020001_user_backups.sql`, then run its pgTAP policy suite from `supabase/tests/user_backup_rls.test.sql` against a disposable project/database. Owner access policies are enabled for every app-prefixed backup table; the atomic `app_replace_my_backup` RPC uses `SECURITY INVOKER` and derives ownership from `auth.uid()`.
+Automatic backup is separately enabled per Supabase account and supports daily or weekly best-effort scheduling. No automatic upload runs unless the user is signed in, has configured the project URL/publishable key, and enables the setting. The first empty-cloud backup can upload after opt-in. Thereafter, automatic sync uploads local-only changes only when the remote copy matches the last-sync baseline. If the cloud changed on another device, automatic sync records a conflict and leaves both copies untouched for manual review. The app verifies uploaded content before updating last-success time. Supabase Auth sessions are encrypted with AES-GCM using Android Keystore; neither the password nor auth tokens are included in backup payloads. Local app controls remain available offline or signed out. JobScheduler can defer background work. Live sync, timing, error handling, and restore have not been tested against a configured project or on a physical device.
+
+To configure local development, copy `supabase.properties.example` to the repository root as `supabase.properties` and fill in the HTTPS project URL (`https://<project-ref>.supabase.co`) and public publishable/anon key from Supabase Project Settings → API. This local file is gitignored. Never put a `service_role`/secret key, dashboard password, or personal access token there. This checkout has no `supabase.properties`, so account networking and cloud backup currently report **Not configured**. For a local-only stack, run the migrations in order and execute `supabase/tests/user_backup_rls.test.sql` against the disposable local database before considering any hosted rollout. Configure Auth email confirmation/recovery and allow-list the exact redirect `appinternetcontrol://auth-callback`. RLS is enabled for all four tables, anonymous access is denied, and authenticated users are limited to their own rows by `auth.uid()`. Writes use the transactional `app_replace_my_backup` RPC; reads use `app_read_my_backup` in a single statement under caller RLS. This design uses Postgres tables and RPCs; it requires no Supabase Storage bucket. Keep only the publishable client key in the Android app; never expose a service-role key.
 
 Password recovery and email confirmation use the `appinternetcontrol://auth-callback` deep link. Add that exact redirect URL to the Supabase Auth redirect allow-list and use email templates that preserve Supabase's callback tokens; then verify sign-up confirmation and password recovery against the project. Account deletion is not exposed in the app: Supabase user deletion requires a separately reviewed server-side function and an explicit product deletion flow. Neither backend setup nor server-side account deletion has been run by this repository change.
 
@@ -85,6 +87,21 @@ On Windows, from the repository root:
 ```
 
 The Gradle Wrapper downloads the pinned Gradle distribution on first use and verifies its SHA-256. The debug build output is under `app\build\outputs\apk\debug`; no release APK or signing setup is included.
+
+## Local Supabase verification
+
+The migrations in `supabase\migrations` and the pgTAP test in
+`supabase\tests\user_backup_rls.test.sql` are intended for a local Supabase
+stack only:
+
+```powershell
+supabase start
+supabase test db
+```
+
+Local verification is currently blocked on this machine because Docker
+Desktop's Linux engine is not running and the Supabase CLI is not installed.
+No hosted Supabase credentials were used, and no hosted project was changed.
 
 ## Phase 11 physical-device status
 

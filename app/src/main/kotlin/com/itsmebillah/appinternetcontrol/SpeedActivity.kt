@@ -86,6 +86,7 @@ class SpeedActivity : Activity() {
 
     private fun createScreen(): LinearLayout {
         val pad = (20 * resources.displayMetrics.density).toInt()
+        fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -97,13 +98,13 @@ class SpeedActivity : Activity() {
             addView(TextView(this@SpeedActivity).apply {
                 text = getString(R.string.speed_scope_notice)
                 textSize = 14f
-                setPadding(0, 12, 0, 16)
+                setPadding(0, dp(12), 0, dp(16))
             })
             stateLabel = TextView(this@SpeedActivity).apply { textSize = 16f }
             addView(stateLabel)
             ratesLabel = TextView(this@SpeedActivity).apply {
                 textSize = 22f
-                setPadding(0, 16, 0, 16)
+                setPadding(0, dp(16), 0, dp(16))
             }
             addView(ratesLabel)
             addView(TextView(this@SpeedActivity).apply { text = getString(R.string.speed_interval_label) })

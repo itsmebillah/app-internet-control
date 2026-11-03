@@ -50,7 +50,7 @@ class UsageAnalyticsActivity : Activity() {
         })
         statusView = TextView(this).apply {
             textSize = 14f
-            setPadding(0, 12, 0, 12)
+            setPadding(0, dp(12), 0, dp(12))
         }
         content.addView(statusView)
         periodSpinner = Spinner(this).apply {
@@ -67,7 +67,7 @@ class UsageAnalyticsActivity : Activity() {
         content.addView(periodSpinner)
         totalsView = TextView(this).apply {
             textSize = 18f
-            setPadding(0, 16, 0, 16)
+            setPadding(0, dp(16), 0, dp(16))
         }
         content.addView(totalsView)
         content.addView(sectionTitle(R.string.analytics_top_apps))
@@ -77,7 +77,7 @@ class UsageAnalyticsActivity : Activity() {
         content.addView(TextView(this).apply {
             text = getString(R.string.analytics_trend_notice)
             textSize = 13f
-            setPadding(0, 0, 0, 8)
+            setPadding(0, 0, 0, dp(8))
         })
         trendsList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(trendsList)
@@ -88,7 +88,7 @@ class UsageAnalyticsActivity : Activity() {
         text = getString(resource)
         textSize = 19f
         setTypeface(typeface, android.graphics.Typeface.BOLD)
-        setPadding(0, 20, 0, 8)
+        setPadding(0, dp(20), 0, dp(8))
     }
 
     private fun render() {
@@ -134,7 +134,7 @@ class UsageAnalyticsActivity : Activity() {
             val name = appUsage.packageNames.joinToString(" / ", transform = ::displayName)
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, 8, 0, 8)
+                setPadding(0, dp(8), 0, dp(8))
             }
             row.addView(TextView(this).apply {
                 text = getString(R.string.analytics_app_total, index + 1, name, UsageBytesFormatter.format(appUsage.totalBytes))
@@ -164,7 +164,7 @@ class UsageAnalyticsActivity : Activity() {
         val maxBytes = points.maxOf { it.receivedBytes + it.transmittedBytes }.coerceAtLeast(1)
         points.forEach { point ->
             val total = point.receivedBytes + point.transmittedBytes
-            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 6, 0, 6) }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, dp(6)) }
             row.addView(TextView(this).apply {
                 text = getString(R.string.analytics_day_total, point.date.toString(), UsageBytesFormatter.format(total))
                 textSize = 13f

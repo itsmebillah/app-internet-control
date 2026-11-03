@@ -9,7 +9,6 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.net.URLDecoder
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -20,6 +19,16 @@ import javax.crypto.spec.GCMParameterSpec
 class SupabaseAccountRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("account_session", Context.MODE_PRIVATE)
     private val sessionCipher = AndroidSessionCipher()
+    private val pendingPkce = PendingPkceAuthStore(
+        persistence = object : PkceAuthPersistence {
+            override fun readEncrypted(): String? = prefs.getString(PKCE_STATE_KEY, null)
+            override fun writeEncrypted(value: String): Boolean =
+                prefs.edit().putString(PKCE_STATE_KEY, value).commit()
+            override fun clear(): Boolean = prefs.edit().remove(PKCE_STATE_KEY).commit()
+        },
+        encrypt = sessionCipher::encrypt,
+        decrypt = sessionCipher::decrypt,
+    )
 
     val isConfigured: Boolean
         get() = runCatching {
@@ -35,9 +44,18 @@ class SupabaseAccountRepository(private val context: Context) {
         ?.takeIf { !it.isNullOrBlank() && it != "null" }
 
     fun signUp(email: String, password: String): String {
-        val result = request("POST", "/auth/v1/signup?redirect_to=${encode(AUTH_REDIRECT)}", JSONObject()
-            .put("email", email.trim()).put("password", password))
-        if (result.has("access_token")) saveSession(result)
+        val pkce = pendingPkce.begin(PendingAuthKind.EMAIL_CONFIRMATION)
+        val result = try {
+            request("POST", "/auth/v1/signup?redirect_to=${encode(AUTH_REDIRECT)}",
+                SupabasePkce.signupBody(email.trim(), password, pkce))
+        } catch (failure: Exception) {
+            runCatching { pendingPkce.clear() }
+            throw failure
+        }
+        if (result.has("access_token")) {
+            pendingPkce.clear()
+            saveSession(result)
+        }
         return if (result.has("access_token")) "Account created and signed in."
         else "Sign-up submitted. Confirm your email before signing in if email confirmation is enabled."
     }
@@ -46,32 +64,35 @@ class SupabaseAccountRepository(private val context: Context) {
         val result = request("POST", "/auth/v1/token?grant_type=password", JSONObject()
             .put("email", email.trim()).put("password", password))
         check(result.has("access_token")) { "Sign-in did not return an active session. Check email confirmation and try again." }
+        pendingPkce.clear()
         saveSession(result)
     }
 
     fun requestPasswordRecovery(email: String) {
-        request("POST", "/auth/v1/recover?redirect_to=${encode(AUTH_REDIRECT)}", JSONObject().put("email", email.trim()))
+        val pkce = pendingPkce.begin(PendingAuthKind.PASSWORD_RECOVERY)
+        try {
+            request("POST", "/auth/v1/recover?redirect_to=${encode(AUTH_REDIRECT)}",
+                SupabasePkce.recoveryBody(email.trim(), pkce))
+        } catch (failure: Exception) {
+            runCatching { pendingPkce.clear() }
+            throw failure
+        }
     }
 
-    fun acceptAuthCallback(uri: android.net.Uri): String? {
-        val fragment = uri.fragment ?: return null
-        val values = fragment.split('&').mapNotNull { entry ->
-            val parts = entry.split('=', limit = 2)
-            if (parts.size == 2) URLDecoder.decode(parts[0], "UTF-8") to URLDecoder.decode(parts[1], "UTF-8") else null
-        }.toMap()
-        values["error_description"]?.let { error("Authentication callback failed: $it") }
-        val accessToken = values["access_token"] ?: return null
-        val refreshToken = values["refresh_token"].orEmpty()
-        val session = JSONObject()
-            .put("access_token", accessToken)
-            .put("refresh_token", refreshToken)
-            .put("expires_in", values["expires_in"]?.toLongOrNull() ?: 3600L)
-            .put("expires_at", System.currentTimeMillis() / 1000 + (values["expires_in"]?.toLongOrNull() ?: 3600L))
-        saveSession(session)
-        val user = authorizedRequest("GET", "/auth/v1/user", null)
-        session.put("user", user)
-        saveSession(session)
-        return values["type"]
+    fun acceptAuthCallback(uri: android.net.Uri): String {
+        val kind = SupabasePkceCallbackFlow.complete(uri.toString(), pendingPkce) { code, verifier ->
+            val token = request("POST", SupabasePkce.TOKEN_EXCHANGE_PATH, SupabasePkce.tokenExchangeBody(code, verifier))
+            val accessToken = token.optString("access_token").takeIf(String::isNotBlank)
+                ?: error("PKCE token exchange returned no session.")
+            val session = JSONObject(token.toString())
+            session.put("expires_at", System.currentTimeMillis() / 1000 + session.optLong("expires_in", 3600L))
+            session.put("user", request("GET", "/auth/v1/user", null, bearer = accessToken))
+            saveSession(session)
+        }
+        return when (kind) {
+            PendingAuthKind.EMAIL_CONFIRMATION -> "signup"
+            PendingAuthKind.PASSWORD_RECOVERY -> "recovery"
+        }
     }
 
     fun updatePassword(password: String) {
@@ -80,37 +101,23 @@ class SupabaseAccountRepository(private val context: Context) {
 
     fun signOut() {
         runCatching { authorizedRequest("POST", "/auth/v1/logout", JSONObject()) }
+        runCatching { pendingPkce.clear() }
         prefs.edit().remove(SESSION_KEY).apply()
     }
 
-    fun readCloudBackup(): JSONObject {
-        val auth = requireSession()
-        val userId = auth.optJSONObject("user")?.optString("id")
-            ?.takeIf { !it.isNullOrBlank() && it != "null" }
-            ?: error("The account session has no user identifier. Sign in again.")
-        val result = JSONObject()
-        BACKUP_TABLES.forEach { (table, key) ->
-            val columns = if (table == "app_cloud_settings") "payload" else "record_id,payload"
-            val ordering = if (table == "app_cloud_settings") "" else "&order=record_id.asc"
-            val query = "?select=$columns&user_id=eq.${encode(userId)}$ordering"
-            val rows = authorizedRequest("GET", "/rest/v1/$table$query", null)
-            val values = rows.optJSONArray("rows") ?: JSONArray()
-            if (table == "app_cloud_settings") {
-                result.put(key, values.optJSONObject(0)?.optJSONObject("payload") ?: JSONObject())
-            } else {
-                val items = JSONArray()
-                for (index in 0 until values.length()) values.optJSONObject(index)?.optJSONObject("payload")?.let(items::put)
-                result.put(key, JSONObject().put("items", items))
-            }
-        }
-        return result
+    fun readCloudBackup(expectedUserId: String? = null): JSONObject {
+        requireSession()
+        return authorizedRequest("POST", "/rest/v1/rpc/app_read_my_backup", JSONObject(), expectedUserId = expectedUserId)
     }
 
-    fun writeCloudBackup(snapshot: JSONObject) {
+    fun writeCloudBackup(snapshot: JSONObject, expectedUserId: String? = null) {
         val auth = requireSession()
         val userId = auth.optJSONObject("user")?.optString("id")
             ?.takeIf { !it.isNullOrBlank() && it != "null" }
             ?: error("The account session has no user identifier. Sign in again.")
+        check(expectedUserId == null || expectedUserId == userId) {
+            "The signed-in Supabase account changed before backup. No data was sent."
+        }
         val profiles = snapshot.optJSONObject("profiles")?.optJSONArray("items") ?: JSONArray()
         val schedules = snapshot.optJSONObject("schedules")?.optJSONArray("items") ?: JSONArray()
         val modes = snapshot.optJSONObject("focusModes")?.optJSONArray("items") ?: JSONArray()
@@ -119,7 +126,7 @@ class SupabaseAccountRepository(private val context: Context) {
             .put("p_profiles", profiles)
             .put("p_schedules", schedules)
             .put("p_focus_modes", modes)
-        authorizedRequest("POST", "/rest/v1/rpc/app_replace_my_backup", payload)
+        authorizedRequest("POST", "/rest/v1/rpc/app_replace_my_backup", payload, expectedUserId = expectedUserId)
     }
 
     private fun requireSession(): JSONObject {
@@ -136,9 +143,19 @@ class SupabaseAccountRepository(private val context: Context) {
         return active
     }
 
-    private fun authorizedRequest(method: String, path: String, body: Any?, extraHeaders: Map<String, String> = emptyMap()): JSONObject {
-        val token = requireSession().optString("access_token")
-        return request(method, path, body, token, extraHeaders)
+    private fun authorizedRequest(
+        method: String,
+        path: String,
+        body: Any?,
+        extraHeaders: Map<String, String> = emptyMap(),
+        expectedUserId: String? = null,
+    ): JSONObject {
+        val active = requireSession()
+        val activeUserId = active.optJSONObject("user")?.optString("id")
+        check(expectedUserId == null || expectedUserId == activeUserId) {
+            "The signed-in Supabase account changed before backup. No data was sent."
+        }
+        return request(method, path, body, active.optString("access_token"), extraHeaders)
     }
 
     private fun request(
@@ -168,8 +185,15 @@ class SupabaseAccountRepository(private val context: Context) {
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                val details = runCatching { JSONObject(raw).optString("msg").ifBlank { JSONObject(raw).optString("message") } }.getOrDefault("")
-                error(details.takeIf { it.isNotBlank() } ?: "Supabase request failed (HTTP $code).")
+                val errorBody = runCatching { JSONObject(raw) }.getOrNull()
+                val details = errorBody?.optString("msg")?.takeIf { it.isNotBlank() }
+                    ?: errorBody?.optString("message")?.takeIf { it.isNotBlank() }
+                    ?: errorBody?.optString("error_description")?.takeIf { it.isNotBlank() }
+                    ?: errorBody?.optString("error")?.takeIf { it.isNotBlank() }
+                if (code == 401 || (code == 400 && raw.contains("invalid_grant", ignoreCase = true))) {
+                    error("Supabase session expired or was revoked. Sign in again; local data remains available.")
+                }
+                error(details ?: "Supabase request failed (HTTP $code).")
             }
             when {
                 raw.isBlank() -> JSONObject()
@@ -228,13 +252,8 @@ class SupabaseAccountRepository(private val context: Context) {
 
     companion object {
         private const val SESSION_KEY = "encrypted_session"
+        private const val PKCE_STATE_KEY = "encrypted_pending_pkce_auth"
         private const val KEY_ALIAS = "app_internet_control_supabase_session"
         private const val AUTH_REDIRECT = "appinternetcontrol://auth-callback"
-        private val BACKUP_TABLES = listOf(
-            "app_cloud_settings" to "settings",
-            "app_cloud_profiles" to "profiles",
-            "app_cloud_schedules" to "schedules",
-            "app_cloud_focus_modes" to "focusModes",
-        )
     }
 }

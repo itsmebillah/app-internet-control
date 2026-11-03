@@ -62,7 +62,7 @@ class UsageHistoryActivity : Activity() {
         content.addView(TextView(this).apply {
             text = getString(R.string.usage_scope_notice)
             textSize = 14f
-            setPadding(0, 12, 0, 12)
+            setPadding(0, dp(12), 0, dp(12))
         })
         statusView = TextView(this).apply { textSize = 14f }
         content.addView(statusView)
@@ -91,12 +91,12 @@ class UsageHistoryActivity : Activity() {
         })
         coverageView = TextView(this).apply {
             textSize = 13f
-            setPadding(0, 8, 0, 12)
+            setPadding(0, dp(8), 0, dp(12))
         }
         content.addView(coverageView)
         totalView = TextView(this).apply {
             textSize = 18f
-            setPadding(0, 8, 0, 8)
+            setPadding(0, dp(8), 0, dp(8))
         }
         content.addView(totalView)
         periodSpinner = Spinner(this).apply {
@@ -217,7 +217,7 @@ class UsageHistoryActivity : Activity() {
                     UsageBytesFormatter.format(entry.receivedBytes),
                     UsageBytesFormatter.format(entry.transmittedBytes))
                 textSize = 14f
-                setPadding(0, 10, 0, 10)
+                setPadding(0, dp(10), 0, dp(10))
             })
             recordsList.addView(TextView(this).apply { setBackgroundColor(0x22000000) },
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
@@ -229,6 +229,8 @@ class UsageHistoryActivity : Activity() {
         1 -> UsagePeriod.MONTH
         else -> UsagePeriod.LIFETIME
     }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     private fun displayName(packageName: String): String = runCatching {
         packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString()

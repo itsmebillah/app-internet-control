@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -12,7 +14,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
-import java.security.MessageDigest
+import java.text.DateFormat
+import java.util.Date
 
 class AccountActivity : Activity() {
     private val repository by lazy { SupabaseAccountRepository(this) }
@@ -23,6 +26,10 @@ class AccountActivity : Activity() {
     private lateinit var syncOptIn: CheckBox
     private lateinit var authButtons: LinearLayout
     private lateinit var resetPasswordButton: Button
+    private lateinit var automaticBackupStatus: TextView
+    private lateinit var automaticBackupEnabled: CheckBox
+    private lateinit var automaticBackupFrequency: Spinner
+    private var updatingAutomaticBackupControls = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,8 +53,14 @@ class AccountActivity : Activity() {
         }.apply { visibility = android.view.View.GONE }
         content.addView(resetPasswordButton)
         authButtons = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        authButtons.addView(button("Create account") { withCredentials { repository.signUp(it.first, it.second) } })
-        authButtons.addView(button("Sign in") { withCredentials { repository.signIn(it.first, it.second); "Signed in." } })
+        authButtons.addView(button("Create account") { withCredentials {
+            repository.signUp(it.first, it.second).also { scheduleAutomaticBackupIfEnabled() }
+        } })
+        authButtons.addView(button("Sign in") { withCredentials {
+            repository.signIn(it.first, it.second)
+            scheduleAutomaticBackupIfEnabled()
+            "Signed in."
+        } })
         authButtons.addView(button("Send password recovery email") {
             val address = email.text.toString().trim()
             if (address.isBlank()) toast("Enter your account email first.")
@@ -65,15 +78,119 @@ class AccountActivity : Activity() {
             setPadding(0, dp(4), 0, dp(12))
         })
         content.addView(button("Check and sync backup") { chooseSyncDirection() })
+        content.addView(TextView(this).apply { text = "Supabase automatic backup"; textSize = 20f; setPadding(0, dp(24), 0, dp(8)) })
+        content.addView(TextView(this).apply {
+            text = "Sign in to your Supabase account, then separately enable automatic backup. Backups contain app settings and rules (profiles, manual selections, schedules, and focus modes); usage history, analytics, passwords, auth tokens, and Android permissions are excluded. Data is sent only to your configured Supabase project. RLS limits each account to its own backup. Automatic upload stops if another device changed the cloud copy, so it cannot silently overwrite a conflict."
+            setPadding(0, 0, 0, dp(8))
+        })
+        automaticBackupEnabled = CheckBox(this).apply {
+            text = "Enable automatic Supabase backup"
+            val initialUserId = repository.currentUserId()
+            isChecked = initialUserId?.let { SupabaseAutoBackupStore(this@AccountActivity).isEnabled(it) } ?: false
+            setOnCheckedChangeListener { _, checked ->
+                if (updatingAutomaticBackupControls) return@setOnCheckedChangeListener
+                val userId = repository.currentUserId()
+                if (checked && (!repository.isConfigured || userId == null)) {
+                    isChecked = false
+                    toast(if (!repository.isConfigured) "Configure Supabase before enabling cloud backup." else "Sign in to Supabase before enabling automatic backup.")
+                    return@setOnCheckedChangeListener
+                }
+                if (userId != null) SupabaseAutoBackupStore(this@AccountActivity).setEnabled(userId, checked)
+                val scheduled = SupabaseAutoBackupJobService.schedule(this@AccountActivity)
+                if (!scheduled && userId != null) SupabaseAutoBackupStore(this@AccountActivity)
+                    .setLastError(userId, "Android could not schedule Supabase automatic backup.")
+                refreshAutomaticBackupStatus()
+                if (checked && scheduled) runSupabaseAutoBackupNow()
+            }
+        }
+        content.addView(automaticBackupEnabled)
+        automaticBackupFrequency = Spinner(this).apply {
+            adapter = ArrayAdapter(this@AccountActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Daily", "Weekly"))
+            val initialFrequency = repository.currentUserId()?.let { SupabaseAutoBackupStore(this@AccountActivity).frequency(it) }
+            setSelection(if (initialFrequency == SupabaseBackupFrequency.WEEKLY) 1 else 0)
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                    if (updatingAutomaticBackupControls) return
+                    val userId = repository.currentUserId()
+                    if (userId != null) {
+                        val store = SupabaseAutoBackupStore(this@AccountActivity)
+                        val selected = if (position == 1) SupabaseBackupFrequency.WEEKLY else SupabaseBackupFrequency.DAILY
+                        if (selected != store.frequency(userId)) {
+                            store.setFrequency(userId, selected)
+                            if (store.isEnabled(userId) && !SupabaseAutoBackupJobService.schedule(this@AccountActivity)) {
+                                store.setLastError(userId, "Android could not schedule Supabase automatic backup.")
+                            }
+                        }
+                    }
+                    refreshAutomaticBackupStatus()
+                }
+            }
+        }
+        content.addView(automaticBackupFrequency)
+        automaticBackupStatus = TextView(this).apply { setPadding(0, dp(8), 0, dp(8)) }
+        content.addView(automaticBackupStatus)
         content.addView(button("Sign out") {
+            SupabaseAutoBackupJobService.cancel(this)
             runNetwork { repository.signOut(); "Signed out. Local controls and data remain on this device." }
         })
         val scroll = ScrollView(this).apply { addView(content) }
         setContentView(scroll, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         refreshStatus()
+        refreshAutomaticBackupStatus()
         handleAuthCallback(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshStatus()
+        refreshAutomaticBackupStatus()
+    }
+
+    private fun runSupabaseAutoBackupNow() {
+        automaticBackupStatus.text = "Checking local and Supabase backup state…"
+        Thread {
+            runCatching { SupabaseAutoBackupManager.run(this) }
+                .onSuccess { runOnUiThread { refreshAutomaticBackupStatus() } }
+                .onFailure { runOnUiThread { refreshAutomaticBackupStatus() } }
+        }.start()
+    }
+
+    private fun refreshAutomaticBackupStatus() {
+        if (!::automaticBackupStatus.isInitialized) return
+        val userId = repository.currentUserId()
+        val store = SupabaseAutoBackupStore(this)
+        val enabled = userId?.let(store::isEnabled) == true
+        val frequency = userId?.let(store::frequency) ?: SupabaseBackupFrequency.DAILY
+        val lastSuccess = userId?.let(store::lastSuccessMillis)?.let { DateFormat.getDateTimeInstance().format(Date(it)) } ?: "Never"
+        automaticBackupStatus.text = buildString {
+            append("Supabase: ").append(when {
+                !repository.isConfigured -> "Not configured"
+                userId == null -> "Signed out"
+                else -> "Signed in"
+            })
+            append("\nProject endpoint: ").append(if (repository.isConfigured) "Configured locally" else "Not configured")
+            append("\nFrequency: ").append(frequency.name.lowercase().replaceFirstChar(Char::uppercase))
+            append("\nLast successful backup: ").append(lastSuccess)
+            append("\nAutomatic backup: ").append(if (enabled) "On" else "Off")
+            append("\nStatus: ").append(userId?.let(store::lastError) ?: when {
+                !repository.isConfigured -> "Add the project URL and publishable key locally."
+                userId == null -> "Sign in to enable backup. Local app controls remain available."
+                enabled -> "Scheduled; Android may defer background work."
+                else -> "No automatic uploads enabled."
+            })
+        }
+        updatingAutomaticBackupControls = true
+        automaticBackupEnabled.isEnabled = repository.isConfigured && userId != null
+        automaticBackupEnabled.isChecked = enabled
+        automaticBackupFrequency.isEnabled = repository.isConfigured && userId != null
+        automaticBackupFrequency.setSelection(if (frequency == SupabaseBackupFrequency.WEEKLY) 1 else 0)
+        updatingAutomaticBackupControls = false
+    }
+
+    private fun scheduleAutomaticBackupIfEnabled() {
+        SupabaseAutoBackupJobService.schedule(this)
+    }
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -85,6 +202,7 @@ class AccountActivity : Activity() {
         if (uri.scheme != "appinternetcontrol" || uri.host != "auth-callback") return
         runNetwork {
             val type = repository.acceptAuthCallback(uri)
+            scheduleAutomaticBackupIfEnabled()
             if (type == "recovery") runOnUiThread {
                 resetPasswordButton.visibility = android.view.View.VISIBLE
                 status.text = "Recovery verified. Enter a new password and choose Set new password."
@@ -121,7 +239,7 @@ class AccountActivity : Activity() {
             toast("Enable optional cloud backup first.")
             return
         }
-        val accountSyncKey = LAST_SYNC_HASH + "_" + repository.currentUserId().orEmpty()
+        val accountSyncKey = LAST_SYNC_HASH + repository.currentUserId().orEmpty()
         status.text = "Checking local and cloud backup…"
         Thread {
             runCatching {
@@ -151,6 +269,7 @@ class AccountActivity : Activity() {
                         repository.writeCloudBackup(local)
                         val hash = fingerprint(local)
                         preferences.edit().putString(accountSyncKey, hash).apply()
+                        repository.currentUserId()?.let { SupabaseAutoBackupStore(this).setLastSuccessMillis(it, System.currentTimeMillis()) }
                         "Local settings, profiles, schedules, and focus modes backed up."
                     } }
                     .setPositiveButton("Restore cloud") { _, _ -> runNetwork {
@@ -168,8 +287,8 @@ class AccountActivity : Activity() {
     private fun runNetwork(action: () -> String) {
         status.text = "Working…"
         Thread {
-            runCatching(action).onSuccess { message -> runOnUiThread { status.text = message; refreshStatus() } }
-                .onFailure { error -> runOnUiThread { status.text = safeMessage(error); refreshStatus() } }
+            runCatching(action).onSuccess { message -> runOnUiThread { status.text = message; refreshAutomaticBackupStatus() } }
+                .onFailure { error -> runOnUiThread { status.text = safeMessage(error); refreshAutomaticBackupStatus() } }
         }.start()
     }
 
@@ -178,13 +297,12 @@ class AccountActivity : Activity() {
         val email = repository.currentEmail()
         status.text = when {
             !repository.isConfigured -> "Not configured. Add local Supabase project URL and publishable key; no network account or backup request can run yet."
-            email != null -> "Signed in as $email. Cloud backup is ${if (syncOptIn.isChecked) "opted in" else "off"}; sync is manual."
+            email != null -> "Signed in as $email. Manual sync is ${if (syncOptIn.isChecked) "enabled" else "off"}; automatic backup is controlled separately below."
             else -> "Not signed in. Local app controls work independently of an account."
         }
     }
 
-    private fun fingerprint(json: JSONObject): String = MessageDigest.getInstance("SHA-256")
-        .digest(json.toString().toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+    private fun fingerprint(json: JSONObject): String = CloudBackupFingerprint.of(json)
 
     private fun safeMessage(error: Throwable): String = error.message?.takeIf { it.isNotBlank() }
         ?: "Request failed. Check your network and Supabase configuration."

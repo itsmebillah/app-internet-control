@@ -1,4 +1,6 @@
-﻿plugins {
+﻿import java.util.Base64
+
+plugins {
     id("com.android.application")
 }
 
@@ -9,6 +11,26 @@ fun supabaseBuildConfigValue(property: String): String {
         ?.firstOrNull { it.startsWith("$property=") }
         ?.substringAfter('=')
         .orEmpty()
+    if (property == "supabase.publishableKey" && value.isNotBlank() && !value.startsWith("YOUR_")) {
+        require(!value.startsWith("sb_secret_")) {
+            "A Supabase secret key cannot be packaged in the Android app. Use a publishable key."
+        }
+        if (value.startsWith("sb_publishable_")) {
+            // Current Supabase publishable key format.
+        } else {
+            val claims = runCatching {
+                val payload = value.split('.')[1]
+                String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8)
+            }.getOrElse {
+                error("Supabase key must be a publishable key or a legacy anon JWT.")
+            }
+            val role = Regex("\"role\"\\s*:\\s*\"([^\"]+)\"")
+                .find(claims)?.groupValues?.get(1)
+            require(role == "anon") {
+                "Only a legacy Supabase anon JWT may be used here; service-role and other keys are rejected."
+            }
+        }
+    }
     return value.replace("\\", "\\\\")
         .replace("\"", "\\\"")
         .replace("\r", "\\r")
@@ -38,4 +60,5 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

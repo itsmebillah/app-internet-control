@@ -18,6 +18,7 @@ class ChangeHistoryActivity : Activity() {
             val pad = (20 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
         }
+        fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
         content.addView(TextView(this).apply {
             text = getString(R.string.history_title)
             textSize = 24f
@@ -26,7 +27,7 @@ class ChangeHistoryActivity : Activity() {
         content.addView(TextView(this).apply {
             text = getString(R.string.history_privacy_notice)
             textSize = 14f
-            setPadding(0, 12, 0, 12)
+            setPadding(0, dp(12), 0, dp(12))
         })
         content.addView(android.widget.Button(this).apply {
             text = getString(R.string.history_clear)
@@ -65,7 +66,7 @@ class ChangeHistoryActivity : Activity() {
                 rows.addView(TextView(this).apply {
                     text = getString(R.string.history_entry, timestamp, action, event.packageName, source, outcome)
                     textSize = 14f
-                    setPadding(0, 12, 0, 12)
+                    setPadding(0, dp(12), 0, dp(12))
                 })
                 rows.addView(TextView(this).apply { setBackgroundColor(0x22000000) },
                     LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
