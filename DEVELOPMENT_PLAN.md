@@ -70,6 +70,15 @@ The repository was clean at `45b0f8dddfd7b0f51c5d11a4fa5596ce9c15f037`, identica
 
 The system VPN status icon is controlled by Android and cannot be hidden by this app. The optional speed-monitor notification is a separate app notification. The app must not attempt to spoof or suppress the system indicator.
 
+### Status-bar network-speed investigation — 2026-11-03
+
+- **Verified on connected device:** realme RMX3834, Android 15/API 35; build `RMX3834export_15_H.08`, fingerprint branch `T.R4T2`.
+- Android 15's public notification model puts a small notification icon in the status bar and the notification's text in the shade. It exposes no public API for an ordinary app to continuously write arbitrary speed text into the status bar.
+- Android 16/API 36 introduces promoted Live Update notifications with optional compact status chips. They require `POST_PROMOTED_NOTIFICATIONS`, a promotion request, a qualifying user-started ongoing activity, and platform/user/OEM support. This runtime is API 35, so that path is unavailable on this phone; promotion also cannot guarantee a permanent OEM-style meter.
+- Realme's system manual documents a real-time network speed setting for supported UI 6 devices. Realme support states that UI S/T/R/Go/U editions do not support the toggle. The connected build's `T` fingerprint branch is consistent with T Edition, but the actual Settings toggle was not opened or changed; the user can confirm by searching Settings for “Real-time network speed.”
+- **No app code change:** the existing separate `specialUse` foreground service already updates one persistent low-importance notification at the selected 1/2/5/10-second interval (2 seconds by default). It requires notification visibility and its app/channel controls remain independent of VPN. Keep this notification as the app-controlled fallback; no overlay, accessibility permission, or VPN change is appropriate.
+- **NOT DEVICE-TESTED:** visual notification update cadence, lock-screen/background survival, and whether this exact firmware exposes the OEM system toggle remain to be checked in a manual phone test.
+
 ### Schedule expiry and AM/PM regression fix — 2026-11-03
 
 The schedule evaluator already treated overnight windows as extending into the next local date and treated the end instant as exclusive. The observed late/stuck behavior was caused by using only `setAndAllowWhileIdle` (which Android may delay in Doze) and by the VPN service trusting the package list in its last start intent instead of recalculating persisted schedule state at service start/update. The time picker was explicitly configured for 24-hour mode, so it had no AM/PM selector.
