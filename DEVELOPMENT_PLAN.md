@@ -70,6 +70,16 @@ The repository was clean at `45b0f8dddfd7b0f51c5d11a4fa5596ce9c15f037`, identica
 
 The system VPN status icon is controlled by Android and cannot be hidden by this app. The optional speed-monitor notification is a separate app notification. The app must not attempt to spoof or suppress the system indicator.
 
+### Schedule expiry and AM/PM regression fix — 2026-11-03
+
+The schedule evaluator already treated overnight windows as extending into the next local date and treated the end instant as exclusive. The observed late/stuck behavior was caused by using only `setAndAllowWhileIdle` (which Android may delay in Doze) and by the VPN service trusting the package list in its last start intent instead of recalculating persisted schedule state at service start/update. The time picker was explicitly configured for 24-hour mode, so it had no AM/PM selector.
+
+- **Fixed:** schedule start/end controls now use the native 12-hour picker and display AM/PM. Picker values are normalized to `LocalTime`/minutes since midnight; 7:00 PM and 9:59 AM round-trip unambiguously.
+- **Fixed:** the single shared next-boundary alarm schedules overnight end time on the following day. It is exact while Android's user-granted `SCHEDULE_EXACT_ALARM` access is available; otherwise an inexact fallback remains and the UI explains that Android may delay transitions. Granting exact-alarm access triggers recalculation. Existing alarm identity/update behavior avoids duplicate alarms.
+- **Fixed:** every VPN service start or package-rule update reloads persistent schedules and other rules, expires timers, recalculates the next alarm, and recomputes the effective package set before applying the existing tunnel setup. This reconciles missed/stale boundaries while preserving manual, overlapping schedule, profile, focus, and temporary block decisions. Packet routing/filtering code was not changed.
+- **PASS:** `.\gradlew.bat testDebugUnitTest assembleDebug` — all 50 unit tests and the debug build passed. Added regression coverage for overnight interval and next-day end alarm, missed end reconciliation, overlap/manual preservation, and AM/PM conversion.
+- **NOT DEVICE-VERIFIED:** physical tests are still needed for the 7:00 PM–9:59 AM transition with exact access granted/denied, Doze/background delivery, reboot/time/time-zone changes, VPN service restart/update, VPN consent/revocation, and confirming internet reconnects at the end. Exact-alarm access is a user-controlled system setting; denying it leaves only delayed inexact delivery.
+
 ### Foreground notification behavior update — 2026-11-03
 
 Android requires an ongoing notification while a foreground service is active; its VPN guidance specifically calls for a non-dismissible notice while VPN is active. The VPN service already uses a separate `LOW`-importance notification channel. `LOW` is silent and still appears in the shade. Android explicitly discourages `MIN` importance for foreground services, so the app does not try to hide, remove, or further demote the VPN notification. Android also owns the VPN key/status indicator. If the user denies notification permission, Android may omit foreground-service notices from the shade while surfacing the app under Active apps/Task Manager; the app does not use that platform behavior to suppress its VPN notice.

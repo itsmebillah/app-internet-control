@@ -24,20 +24,8 @@ object ScheduleCoordinator {
     fun reconcile(context: Context) {
         val appContext = context.applicationContext
         val now = Instant.now()
-        val schedules = BlockScheduleStore(appContext).read()
-        val temporaryBlocks = TemporaryBlockStore(appContext).expire(now)
-        scheduleNextBoundary(appContext, schedules, temporaryBlocks, now)
-
-        val effectivePackages = EffectiveBlockResolver.resolve(
-            manualBlockedPackages = AppSelectionStore(appContext).read().packageNames,
-            activeFocusMode = FocusModeStore(appContext).activeMode(),
-            activeProfile = UserProfileStore(appContext).activeProfile(),
-            schedules = schedules,
-            temporaryBlocks = temporaryBlocks,
-            now = now,
-            zone = ZoneId.systemDefault(),
-        )
-        recordEffectiveTransitions(appContext, now, effectivePackages, schedules, temporaryBlocks)
+        val rules = resolveCurrentRules(appContext, now)
+        val effectivePackages = rules.effectivePackages
         val runtimeStore = ScheduleRuntimeStore(appContext)
         if (VpnServiceLifecyclePolicy.shouldStop(effectivePackages)) {
             if (AppBlockingVpnService.isVpnActive) {
@@ -76,6 +64,32 @@ object ScheduleCoordinator {
         }
         notifyStatusChanged(appContext)
     }
+
+    /**
+     * Re-evaluates persisted rules at VPN startup/update time. Alarm delivery can be delayed,
+     * and service intents may contain an old package set, so the schedule snapshot is authoritative.
+     */
+    fun packagesForVpnServiceStart(context: Context, now: Instant = Instant.now()): Set<String> =
+        resolveCurrentRules(context.applicationContext, now).effectivePackages
+
+    private fun resolveCurrentRules(context: Context, now: Instant): CurrentRules {
+        val schedules = BlockScheduleStore(context).read()
+        val temporaryBlocks = TemporaryBlockStore(context).expire(now)
+        scheduleNextBoundary(context, schedules, temporaryBlocks, now)
+        val effectivePackages = EffectiveBlockResolver.resolve(
+            manualBlockedPackages = AppSelectionStore(context).read().packageNames,
+            activeFocusMode = FocusModeStore(context).activeMode(),
+            activeProfile = UserProfileStore(context).activeProfile(),
+            schedules = schedules,
+            temporaryBlocks = temporaryBlocks,
+            now = now,
+            zone = ZoneId.systemDefault(),
+        )
+        recordEffectiveTransitions(context, now, effectivePackages, schedules, temporaryBlocks)
+        return CurrentRules(effectivePackages)
+    }
+
+    private data class CurrentRules(val effectivePackages: Set<String>)
 
     fun captureManualChange(context: Context, packageName: String, requestedBlocked: Boolean) {
         val now = Instant.now()
@@ -169,6 +183,14 @@ object ScheduleCoordinator {
         if (next == null) {
             alarmManager.cancel(pendingIntent)
         } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarmManager.canScheduleExactAlarms()) {
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli(), pendingIntent)
+                    return
+                } catch (_: SecurityException) {
+                    // Access can be revoked between the check and the call; keep a delayed fallback alarm.
+                }
+            }
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli(), pendingIntent)
         }
     }

@@ -9,8 +9,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.net.VpnService
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -29,6 +31,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 class ScheduleActivity : Activity() {
@@ -324,12 +327,13 @@ class ScheduleActivity : Activity() {
         TimePickerDialog(
             this,
             { _, hour, minute ->
-                if (isStart) startTime = LocalTime.of(hour, minute) else endTime = LocalTime.of(hour, minute)
+                val selectedTime = ScheduleTimeConversion.fromPickerHourOfDay(hour, minute)
+                if (isStart) startTime = selectedTime else endTime = selectedTime
                 updateFormLabels()
             },
             current.hour,
             current.minute,
-            true,
+            false,
         ).show()
     }
 
@@ -392,6 +396,7 @@ class ScheduleActivity : Activity() {
         scheduleName.text.clear()
         renderSchedules()
         ScheduleCoordinator.reconcile(this)
+        if (requestExactAlarmAccessIfNeeded()) return
         if (schedule.action == ScheduleAction.BLOCK && VpnService.prepare(this) != null) {
             requestScheduleEnforcement()
         }
@@ -413,10 +418,12 @@ class ScheduleActivity : Activity() {
     }
 
     private fun toggleSchedule(schedule: BlockSchedule) {
-        scheduleStore.write(scheduleStore.read().map { if (it.id == schedule.id) it.copy(enabled = !it.enabled) else it })
+        val updatedSchedule = schedule.copy(enabled = !schedule.enabled)
+        scheduleStore.write(scheduleStore.read().map { if (it.id == schedule.id) updatedSchedule else it })
         ScheduleCoordinator.reconcile(this)
         renderSchedules()
         renderStatus()
+        if (updatedSchedule.enabled) requestExactAlarmAccessIfNeeded()
     }
 
     private fun deleteSchedule(schedule: BlockSchedule) {
@@ -469,7 +476,7 @@ class ScheduleActivity : Activity() {
     private fun renderStatus() {
         if (!::statusView.isInitialized) return
         val next = ScheduleEvaluator.nextBoundaryLabel(scheduleStore.read(), java.time.Instant.now(), java.time.ZoneId.systemDefault())
-        val nextText = next?.format(DateTimeFormatter.ofPattern("EEE, d MMM · HH:mm"))
+        val nextText = next?.format(DateTimeFormatter.ofPattern("EEE, d MMM · h:mm a", Locale.getDefault()))
             ?: getString(R.string.no_upcoming_boundary)
         val statusText = when {
             AppBlockingVpnService.isVpnActive -> getString(R.string.schedule_vpn_active_unverified)
@@ -481,6 +488,7 @@ class ScheduleActivity : Activity() {
     }
 
     private fun requestScheduleEnforcement() {
+        if (requestExactAlarmAccessIfNeeded()) return
         val hasBlockingSchedule = scheduleStore.read().any { it.enabled && it.action == ScheduleAction.BLOCK }
         if (!hasBlockingSchedule && ScheduleCoordinator.effectiveBlockedPackages(this).isEmpty()) {
             Toast.makeText(this, R.string.no_block_rules_to_enable, Toast.LENGTH_LONG).show()
@@ -493,6 +501,20 @@ class ScheduleActivity : Activity() {
             return
         }
         continueConsentFlow()
+    }
+
+    /** Returns true when the user must visit the system's exact-alarm access screen. */
+    private fun requestExactAlarmAccessIfNeeded(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        val hasEnabledSchedule = scheduleStore.read().any { it.enabled }
+        if (!hasEnabledSchedule) return false
+        val alarmManager = getSystemService(android.app.AlarmManager::class.java)
+        if (alarmManager.canScheduleExactAlarms()) return false
+        Toast.makeText(this, R.string.schedule_exact_alarm_access_needed, Toast.LENGTH_LONG).show()
+        return runCatching {
+            startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+            true
+        }.getOrDefault(false)
     }
 
     private fun continueConsentFlow() {
@@ -511,6 +533,6 @@ class ScheduleActivity : Activity() {
         private const val BLOCK_ACTION_ID = 2101
         private const val ALLOW_ACTION_ID = 2102
         private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy")
-        private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+        private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
     }
 }

@@ -25,7 +25,7 @@ class AppBlockingVpnService : VpnService() {
         }
 
         startForegroundCompat()
-        val selected = intent?.getStringArrayListExtra(EXTRA_SELECTED_PACKAGES).orEmpty()
+        val selected = ScheduleCoordinator.packagesForVpnServiceStart(this).toList()
         if (selected.isEmpty()) {
             stopFiltering()
             stopSelf(startId)

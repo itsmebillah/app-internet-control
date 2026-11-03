@@ -32,6 +32,83 @@ class ScheduleEvaluatorTest {
     }
 
     @Test
+    fun sevenPmToNineFiftyNineAmRemainsActiveOvernightAndEndsExclusively() {
+        val schedule = recurring(DayOfWeek.MONDAY, LocalTime.of(19, 0), LocalTime.of(9, 59))
+
+        assertTrue(ScheduleEvaluator.isActive(schedule, monday.atTime(19, 0).atZone(zone).toInstant(), zone))
+        assertTrue(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atStartOfDay(zone).toInstant(), zone))
+        assertTrue(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atTime(9, 58).atZone(zone).toInstant(), zone))
+        assertFalse(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atTime(9, 59).atZone(zone).toInstant(), zone))
+        assertFalse(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atTime(10, 0).atZone(zone).toInstant(), zone))
+    }
+
+    @Test
+    fun overnightEndBoundaryIsScheduledOnTheFollowingDate() {
+        val schedule = recurring(DayOfWeek.MONDAY, LocalTime.of(19, 0), LocalTime.of(9, 59))
+        val now = monday.atTime(20, 0).atZone(zone).toInstant()
+
+        assertEquals(
+            monday.plusDays(1).atTime(9, 59).atZone(zone).toInstant(),
+            ScheduleEvaluator.nextBoundary(listOf(schedule), now, zone),
+        )
+    }
+
+    @Test
+    fun evaluatingRulesAfterMissedEndAlarmExpiresScheduleButPreservesManualAndOverlappingBlocks() {
+        val ended = recurring(DayOfWeek.MONDAY, LocalTime.of(19, 0), LocalTime.of(9, 59))
+        val overlapping = ended.copy(id = "overlap", endTime = LocalTime.of(11, 0))
+        val afterFirstEnd = monday.plusDays(1).atTime(10, 0).atZone(zone).toInstant()
+
+        assertEquals(
+            emptySet<String>(),
+            ScheduleEvaluator.effectiveBlockedPackages(
+                manualBlockedPackages = emptySet(),
+                schedules = listOf(ended),
+                now = afterFirstEnd,
+                zone = zone,
+            ),
+        )
+        assertEquals(
+            setOf("com.example.scheduled", "com.example.manual"),
+            ScheduleEvaluator.effectiveBlockedPackages(
+                manualBlockedPackages = setOf("com.example.scheduled", "com.example.manual"),
+                schedules = listOf(ended),
+                now = afterFirstEnd,
+                zone = zone,
+            ),
+        )
+        assertEquals(
+            setOf("com.example.scheduled", "com.example.manual"),
+            ScheduleEvaluator.effectiveBlockedPackages(
+                manualBlockedPackages = setOf("com.example.manual"),
+                schedules = listOf(ended, overlapping),
+                now = afterFirstEnd,
+                zone = zone,
+            ),
+        )
+        assertEquals(
+            setOf("com.example.manual"),
+            ScheduleEvaluator.effectiveBlockedPackages(
+                manualBlockedPackages = setOf("com.example.manual"),
+                schedules = listOf(ended, overlapping),
+                now = monday.plusDays(1).atTime(11, 0).atZone(zone).toInstant(),
+                zone = zone,
+            ),
+        )
+    }
+
+    @Test
+    fun twelveHourAndAmPmValuesConvertToUnambiguousTwentyFourHourTimes() {
+        assertEquals(LocalTime.of(19, 0), ScheduleTimeConversion.fromTwelveHour(7, 0, isPm = true))
+        assertEquals(LocalTime.of(9, 59), ScheduleTimeConversion.fromTwelveHour(9, 59, isPm = false))
+        assertEquals(LocalTime.MIDNIGHT, ScheduleTimeConversion.fromTwelveHour(12, 0, isPm = false))
+        assertEquals(LocalTime.NOON, ScheduleTimeConversion.fromTwelveHour(12, 0, isPm = true))
+        assertEquals(LocalTime.of(19, 0), ScheduleTimeConversion.fromPickerHourOfDay(19, 0))
+        assertEquals(TwelveHourTime(7, 0, true), ScheduleTimeConversion.toTwelveHour(LocalTime.of(19, 0)))
+        assertEquals(TwelveHourTime(9, 59, false), ScheduleTimeConversion.toTwelveHour(LocalTime.of(9, 59)))
+    }
+
+    @Test
     fun oneTimeScheduleOnlyAppliesOnItsDateAndEndIsExclusive() {
         val schedule = BlockSchedule(
             name = "One time",
