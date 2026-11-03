@@ -88,6 +88,7 @@
     <string name="speed_state_starting">Starting monitor…</string>
     <string name="speed_state_running">Monitoring is running.</string>
     <string name="speed_state_start_denied">Android did not allow the monitor to start. Open this screen and try again.</string>
+    <string name="speed_state_notification_required">Allow the speed notification to run monitoring.</string>
     <string name="speed_rates">Download: %1$s\nUpload: %2$s</string>
     <string name="speed_waiting">Waiting for a valid counter sample…</string>
     <string name="speed_interval_label">Sampling interval</string>
@@ -98,7 +99,7 @@
     <string name="speed_notification_title">Network speed monitor</string>
     <string name="speed_notification_waiting">Waiting for network counter samples</string>
     <string name="speed_notification_rates">↓ %1$s · ↑ %2$s</string>
-    <string name="speed_notification_permission_denied">Notification permission is off. Monitoring will continue, but Android may hide its ongoing notification from the notification drawer.</string>
+    <string name="speed_notification_required">Allow App Internet Control notifications, including the Live network speed channel, to start monitoring. Monitoring stops if that notification is disabled.</string>
     <string name="usage_title">Internet usage history</string>
     <string name="usage_scope_notice">Per-app totals for visible launcher apps are collected locally from Android network statistics over Wi-Fi and mobile data while collection is enabled. Shared UIDs are grouped. Android and device limits can leave gaps; older data before collection starts is not included.</string>
     <string name="usage_access_settings">Open Usage Access settings</string>

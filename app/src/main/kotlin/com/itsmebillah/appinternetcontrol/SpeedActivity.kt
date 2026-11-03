@@ -63,11 +63,23 @@ class SpeedActivity : Activity() {
         super.onStop()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::store.isInitialized && store.isRunning && !SpeedMonitorService.canShowSpeedNotification(this)) {
+            stopMonitor()
+            showNotificationRequired()
+        }
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != NOTIFICATION_PERMISSION_REQUEST) return
         if (grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, R.string.speed_notification_permission_denied, Toast.LENGTH_LONG).show()
+            store.isRunning = false
+            renderState()
+            renderRates(null)
+            showNotificationRequired()
+            return
         }
         startMonitor()
     }
@@ -124,6 +136,14 @@ class SpeedActivity : Activity() {
     }
 
     private fun startMonitor() {
+        if (!SpeedMonitorService.canShowSpeedNotification(this)) {
+            store.isRunning = false
+            stateLabel.text = getString(R.string.speed_state_notification_required)
+            monitorButton.text = getString(R.string.speed_start)
+            renderRates(null)
+            showNotificationRequired()
+            return
+        }
         store.intervalMillis = INTERVALS[intervalSpinner.selectedItemPosition]
         val intent = Intent(this, SpeedMonitorService::class.java)
         try {
@@ -161,6 +181,10 @@ class SpeedActivity : Activity() {
             NetworkRateFormatter.format(rates.downloadBytesPerSecond),
             NetworkRateFormatter.format(rates.uploadBytesPerSecond),
         )
+    }
+
+    private fun showNotificationRequired() {
+        Toast.makeText(this, R.string.speed_notification_required, Toast.LENGTH_LONG).show()
     }
 
     companion object {

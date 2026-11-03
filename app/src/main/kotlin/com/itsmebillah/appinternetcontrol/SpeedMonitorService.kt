@@ -21,6 +21,11 @@ class SpeedMonitorService : Service() {
     private var previousCounters: NetworkCounters? = null
     private val sampleRunnable = object : Runnable {
         override fun run() {
+            if (!canShowSpeedNotification(this@SpeedMonitorService)) {
+                store.isRunning = false
+                stopMonitoring()
+                return
+            }
             if (!store.isRunning) {
                 stopMonitoring()
                 return
@@ -43,7 +48,6 @@ class SpeedMonitorService : Service() {
         super.onCreate()
         store = SpeedMonitorStore(this)
         createNotificationChannel()
-        startAsForeground(createNotification(null))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -52,7 +56,15 @@ class SpeedMonitorService : Service() {
             stopMonitoring()
             return START_NOT_STICKY
         }
+        if (!canShowSpeedNotification(this)) {
+            store.isRunning = false
+            store.latestRates = null
+            broadcastRates(null)
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         store.isRunning = true
+        startAsForeground(createNotification(null))
         handler.removeCallbacks(sampleRunnable)
         previousCounters = null
         handler.post(sampleRunnable)
@@ -140,5 +152,19 @@ class SpeedMonitorService : Service() {
         private const val CHANNEL_ID = "live_network_speed"
         private const val NOTIFICATION_ID = 2401
         private const val STOP_REQUEST_CODE = 2402
+
+        fun canShowSpeedNotification(context: android.content.Context): Boolean {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            val permissionGranted = Build.VERSION.SDK_INT < 33 ||
+                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            val channel = if (Build.VERSION.SDK_INT >= 26) manager.getNotificationChannel(CHANNEL_ID) else null
+            val channelEnabled = channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
+            return SpeedNotificationPolicy.canMonitor(
+                notificationPermissionGranted = permissionGranted,
+                appNotificationsEnabled = manager.areNotificationsEnabled(),
+                speedChannelEnabled = channelEnabled,
+            )
+        }
     }
 }
