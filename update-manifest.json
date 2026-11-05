@@ -1,0 +1,7 @@
+{
+  "latestVersionName": "1.0.1",
+  "latestVersionCode": 2,
+  "releaseNotes": "First public release of App Internet Control. Includes searchable app selection, local manual and Wi-Fi rules, schedules, temporary blocks, focus modes, change history, live network speed estimates, and optional usage history. Traffic blocking remains experimental and unverified; see the release notes for limitations.",
+  "minimumSupportedVersionCode": 1,
+  "releaseUrl": "https://github.com/itsmebillah/app-internet-control/releases/latest"
+}
