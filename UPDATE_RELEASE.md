@@ -56,6 +56,6 @@ GitHub Releases are intended for direct APK distribution. Users install through 
 - `:app:signingReport` selected the release configuration. `clean assembleRelease` succeeded for v1.0.1/versionCode 2. `apksigner`, certificate fingerprint, and `zipalign` checks passed.
 - A forced release rebuild changed the artifact hash from the earlier local output `4D656A3C4CE64183F562DDC8EE1DDBEA3DDE6C277E8469A8819889F3C068A389`. The rebuilt artifact was separately re-verified; do not treat the earlier hash as its checksum.
 - Current verified APK: `app/build/outputs/apk/release/app-release.apk`; 2,437,606 bytes; SHA-256 `A531CF464E9A5BADC19517C43AAA29E5E64CB8DBAC1E374E416EDBA998C9E153`.
-- The repository source changes are awaiting the authorized source commit/push. Do not publish the APK until the public source corresponds to the exact tree used for this build.
+- The reviewed source changes are pushed to `main` at commit `9ec0da791d97e918feed0f5f82311df8bb1e637d`. The release itself remains unpublished.
 - GitHub CLI is not installed, and the available GitHub integration does not expose release creation or binary asset upload. No GitHub Release, tag, or public APK download has been created or verified.
 - The active manifest file is not in Git and has not been published. After the APK is attached to the release, add the prepared `update-manifest.json` to `main`, publish it, then verify the raw HTTPS URL and release page.

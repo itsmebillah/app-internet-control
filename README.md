@@ -99,7 +99,7 @@ The app declares launcher-intent package visibility rather than `QUERY_ALL_PACKA
 - Speed values are approximate device-wide counters and may be unavailable, reset, or delayed.
 - Usage records begin after collection is enabled. Android can return incomplete windows or group several apps under a shared UID.
 - Minimum SDK 29 remains provisional; the single API 35 test device does not establish broad compatibility.
-- The signed APK is prepared locally; the source commit, GitHub Release, public APK download, and active update manifest are still pending publication.
+- The v1.0.1 source changes are on `main` and the signed APK is prepared locally; the GitHub Release, public APK download, and active update manifest are still pending publication.
 
 ## Privacy and data handling
 
