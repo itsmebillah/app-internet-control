@@ -29,22 +29,24 @@ data class BlockSchedule(
 }
 
 object ScheduleEvaluator {
-    fun isActive(schedule: BlockSchedule, now: Instant, zone: ZoneId): Boolean {
-        if (!schedule.enabled) return false
+    /** End instant for the currently active occurrence, using the device's current local zone. */
+    fun activeEnd(schedule: BlockSchedule, now: Instant, zone: ZoneId): Instant? {
+        if (!schedule.enabled) return null
         val localDate = now.atZone(zone).toLocalDate()
-        val candidateDates = if (schedule.oneTimeDate != null) {
-            listOf(schedule.oneTimeDate)
-        } else {
-            listOf(localDate.minusDays(1), localDate)
-        }
-        return candidateDates.any { date ->
-            if (schedule.oneTimeDate != null && date != schedule.oneTimeDate) return@any false
-            if (schedule.oneTimeDate == null && date.dayOfWeek !in schedule.weekdays) return@any false
-            val start = date.atTime(schedule.startTime).atZone(zone).toInstant()
-            val endDate = if (schedule.endTime <= schedule.startTime) date.plusDays(1) else date
-            val end = endDate.atTime(schedule.endTime).atZone(zone).toInstant()
-            now >= start && now < end
-        }
+        val candidateDates = if (schedule.oneTimeDate != null) listOf(schedule.oneTimeDate) else listOf(localDate.minusDays(1), localDate)
+        return candidateDates.asSequence()
+            .filter { date -> schedule.oneTimeDate?.let { date == it } ?: (date.dayOfWeek in schedule.weekdays) }
+            .mapNotNull { date ->
+                val start = date.atTime(schedule.startTime).atZone(zone).toInstant()
+                val endDate = if (schedule.endTime <= schedule.startTime) date.plusDays(1) else date
+                val end = endDate.atTime(schedule.endTime).atZone(zone).toInstant()
+                end.takeIf { now >= start && now < it }
+            }
+            .minOrNull()
+    }
+
+    fun isActive(schedule: BlockSchedule, now: Instant, zone: ZoneId): Boolean {
+        return activeEnd(schedule, now, zone) != null
     }
 
     fun effectiveBlockedPackages(

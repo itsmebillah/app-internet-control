@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
 
-enum class ChangeSource { MANUAL, TIMER, SCHEDULE, PROFILE, FOCUS }
+enum class ChangeSource { MANUAL, TIMER, SCHEDULE, FOCUS, OTHER }
 enum class EnforcementOutcome { PENDING, NOT_ACTIVE, ACTIVE_UNVERIFIED, OVERRIDDEN }
 
 data class ChangeEvent(
@@ -94,7 +94,7 @@ class ChangeHistoryStore(context: Context) {
                             timestamp = Instant.ofEpochMilli(item.getLong("at")),
                             packageName = item.getString("package"),
                             blocked = item.getBoolean("blocked"),
-                            source = ChangeSource.valueOf(item.getString("source")),
+                            source = sourceOrOther(item.getString("source")),
                             outcome = EnforcementOutcome.valueOf(item.getString("outcome")),
                         ))
                     }
@@ -121,11 +121,14 @@ class ChangeHistoryStore(context: Context) {
                         val decision = json.getJSONObject(packageName)
                         put(packageName, EffectiveDecision(
                             blocked = decision.getBoolean("blocked"),
-                            source = ChangeSource.valueOf(decision.getString("source")),
+                            source = sourceOrOther(decision.getString("source")),
                         ))
                     }
                 }
             }
         }.getOrDefault(emptyMap())
+
+        private fun sourceOrOther(value: String): ChangeSource =
+            runCatching { ChangeSource.valueOf(value) }.getOrDefault(ChangeSource.OTHER)
     }
 }

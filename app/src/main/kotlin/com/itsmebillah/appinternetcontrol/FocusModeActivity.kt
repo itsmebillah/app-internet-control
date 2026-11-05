@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -25,9 +26,13 @@ class FocusModeActivity : Activity() {
     private val focusStore by lazy { FocusModeStore(this) }
     private lateinit var statusView: TextView
     private lateinit var modesList: LinearLayout
+    private lateinit var deactivateModeButton: Button
     private lateinit var modeName: EditText
     private lateinit var appSelectionButton: Button
+    private lateinit var selectedAppsRows: LinearLayout
     private var installedApps: List<InstalledApp> = emptyList()
+    private lateinit var iconLoader: PackageIconLoader
+    private lateinit var appUi: AppUiComponents
     private var selectedPackages = mutableSetOf<String>()
     private var editingModeId: String? = null
     private var statusReceiverRegistered = false
@@ -40,10 +45,17 @@ class FocusModeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        iconLoader = PackageIconLoader(this)
+        appUi = AppUiComponents(this, iconLoader)
         loadVisibleApps()
         setContentView(createScreen())
         renderModes()
         renderStatus()
+    }
+
+    override fun onDestroy() {
+        if (::iconLoader.isInitialized) iconLoader.close()
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -114,15 +126,17 @@ class FocusModeActivity : Activity() {
         })
         statusView = TextView(this).apply { textSize = 14f }
         content.addView(statusView)
-        content.addView(Button(this).apply {
+        deactivateModeButton = Button(this).apply {
             text = getString(R.string.deactivate_focus_mode)
+            visibility = View.GONE
             setOnClickListener {
                 focusStore.activate(null)
                 ScheduleCoordinator.reconcile(this@FocusModeActivity)
                 renderModes()
                 renderStatus()
             }
-        })
+        }
+        content.addView(deactivateModeButton)
         modesList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(modesList)
         content.addView(TextView(this).apply {
@@ -150,6 +164,8 @@ class FocusModeActivity : Activity() {
             setOnClickListener { chooseApps() }
         }
         content.addView(appSelectionButton)
+        selectedAppsRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(selectedAppsRows)
         content.addView(Button(this).apply {
             text = getString(R.string.save_focus_mode)
             setOnClickListener { saveMode() }
@@ -168,24 +184,16 @@ class FocusModeActivity : Activity() {
     }
 
     private fun chooseApps() {
-        if (installedApps.isEmpty()) return
-        val labels = installedApps.map { "${it.displayName} (${it.packageName})" }.toTypedArray()
-        val checked = BooleanArray(installedApps.size) { installedApps[it].packageName in selectedPackages }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.choose_apps)
-            .setMultiChoiceItems(labels, checked) { _, index, selected ->
-                val packageName = installedApps[index].packageName
-                if (selected) selectedPackages.add(packageName) else selectedPackages.remove(packageName)
-            }
-            .setPositiveButton(android.R.string.ok) { _, _ -> updateAppButton() }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        appUi.showPicker(R.string.choose_apps, installedApps, selectedPackages) { selected ->
+            selectedPackages = selected.toMutableSet()
+            updateAppButton()
+        }
     }
 
     private fun updateAppButton() {
         if (!::appSelectionButton.isInitialized) return
-        val names = installedApps.filter { it.packageName in selectedPackages }.map { it.displayName }
-        appSelectionButton.text = if (names.isEmpty()) getString(R.string.choose_apps) else names.joinToString().take(70)
+        appSelectionButton.text = getString(R.string.choose_apps)
+        if (::selectedAppsRows.isInitialized) appUi.addAppRows(selectedAppsRows, selectedPackages, installedApps)
     }
 
     private fun saveMode() {
@@ -233,23 +241,40 @@ class FocusModeActivity : Activity() {
     private fun renderModes() {
         if (!::modesList.isInitialized) return
         modesList.removeAllViews()
-        val modes = focusStore.read()
-        if (modes.isEmpty()) {
-            modesList.addView(TextView(this).apply { text = getString(R.string.no_focus_modes) })
-            return
+        renderModesState(FocusModesUiState.Loading)
+        renderModesState(FocusModesUiStateResolver.resolve(isLoading = false, snapshot = focusStore.snapshot()))
+    }
+
+    private fun renderModesState(state: FocusModesUiState) {
+        if (!::modesList.isInitialized) return
+        modesList.removeAllViews()
+        deactivateModeButton.visibility = if (state is FocusModesUiState.Active) View.VISIBLE else View.GONE
+        when (state) {
+            FocusModesUiState.Loading -> {
+                modesList.addView(TextView(this).apply { text = getString(R.string.focus_modes_loading) })
+            }
+            FocusModesUiState.Empty -> {
+                modesList.addView(TextView(this).apply { text = getString(R.string.no_focus_modes) })
+            }
+            is FocusModesUiState.Inactive -> renderModeCards(state.modes, activeModeId = null)
+            is FocusModesUiState.Active -> renderModeCards(state.modes, activeModeId = state.activeMode.id)
         }
-        val activeId = focusStore.activeMode()?.id
+    }
+
+    private fun renderModeCards(modes: List<FocusMode>, activeModeId: String?) {
         modes.forEach { mode ->
-            val names = installedApps.filter { it.packageName in mode.packageNames }.joinToString { it.displayName }
             val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             card.addView(TextView(this).apply {
-                text = "${mode.name}${if (mode.id == activeId) " · ${getString(R.string.focus_mode_active)}" else ""}\n$names"
+                text = "${mode.name}${if (mode.id == activeModeId) " · ${getString(R.string.focus_mode_active)}" else ""}"
                 textSize = 16f
             })
+            val appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            appUi.addAppRows(appRows, mode.packageNames, installedApps)
+            card.addView(appRows)
             val buttons = LinearLayout(this@FocusModeActivity).apply { orientation = LinearLayout.HORIZONTAL }
             buttons.addView(Button(this@FocusModeActivity).apply {
                 text = getString(R.string.activate_focus_mode)
-                isEnabled = mode.id != activeId
+                isEnabled = mode.id != activeModeId
                 setOnClickListener { activateMode(mode) }
             })
             buttons.addView(Button(this@FocusModeActivity).apply {

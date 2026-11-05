@@ -21,8 +21,16 @@ class FocusModeStore(context: Context) {
     }
 
     fun activeMode(): FocusMode? {
-        val activeId = preferences.getString(ACTIVE_MODE_KEY, null) ?: return null
-        return read().firstOrNull { it.id == activeId }
+        return snapshot().activeMode
+    }
+
+    fun snapshot(): FocusModeSnapshot {
+        val modes = read()
+        val activeId = preferences.getString(ACTIVE_MODE_KEY, null)
+        return FocusModeSnapshot(
+            modes = modes,
+            activeMode = activeId?.let { id -> modes.firstOrNull { it.id == id } },
+        )
     }
 
     fun save(mode: FocusMode) {

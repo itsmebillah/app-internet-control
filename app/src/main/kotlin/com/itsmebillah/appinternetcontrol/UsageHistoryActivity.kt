@@ -29,9 +29,13 @@ class UsageHistoryActivity : Activity() {
     private lateinit var periodSpinner: Spinner
     private lateinit var recordsList: LinearLayout
     private lateinit var trackingButton: Button
+    private lateinit var iconLoader: PackageIconLoader
+    private lateinit var appUi: AppUiComponents
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        iconLoader = PackageIconLoader(this)
+        appUi = AppUiComponents(this, iconLoader)
         database = UsageHistoryDatabase(this)
         setContentView(createScreen())
         render()
@@ -45,6 +49,7 @@ class UsageHistoryActivity : Activity() {
     override fun onDestroy() {
         worker.shutdownNow()
         database.close()
+        if (::iconLoader.isInitialized) iconLoader.close()
         super.onDestroy()
     }
 
@@ -211,11 +216,12 @@ class UsageHistoryActivity : Activity() {
             return
         }
         entries.forEach { entry ->
-            val names = entry.packageNames.map(::displayName).joinToString(" / ")
+            val appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            appUi.addAppRows(appRows, entry.packageNames, emptyList())
+            recordsList.addView(appRows)
             recordsList.addView(TextView(this).apply {
-                text = getString(R.string.usage_app_row, names,
-                    UsageBytesFormatter.format(entry.receivedBytes),
-                    UsageBytesFormatter.format(entry.transmittedBytes))
+                text = getString(R.string.usage_bytes_row,
+                    UsageBytesFormatter.format(entry.receivedBytes), UsageBytesFormatter.format(entry.transmittedBytes))
                 textSize = 14f
                 setPadding(0, dp(10), 0, dp(10))
             })
@@ -231,10 +237,6 @@ class UsageHistoryActivity : Activity() {
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-
-    private fun displayName(packageName: String): String = runCatching {
-        packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString()
-    }.getOrDefault(packageName)
 
     private fun formatTimestamp(millis: Long): String = USAGE_FORMAT.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 

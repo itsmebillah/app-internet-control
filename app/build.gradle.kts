@@ -1,42 +1,25 @@
-﻿import java.util.Base64
-
 plugins {
     id("com.android.application")
 }
 
-fun supabaseBuildConfigValue(property: String): String {
-    val value = rootProject.file("supabase.properties")
-        .takeIf { it.exists() }
-        ?.readLines()
-        ?.firstOrNull { it.startsWith("$property=") }
-        ?.substringAfter('=')
-        .orEmpty()
-    if (property == "supabase.publishableKey" && value.isNotBlank() && !value.startsWith("YOUR_")) {
-        require(!value.startsWith("sb_secret_")) {
-            "A Supabase secret key cannot be packaged in the Android app. Use a publishable key."
-        }
-        if (value.startsWith("sb_publishable_")) {
-            // Current Supabase publishable key format.
-        } else {
-            val claims = runCatching {
-                val payload = value.split('.')[1]
-                String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8)
-            }.getOrElse {
-                error("Supabase key must be a publishable key or a legacy anon JWT.")
-            }
-            val role = Regex("\"role\"\\s*:\\s*\"([^\"]+)\"")
-                .find(claims)?.groupValues?.get(1)
-            require(role == "anon") {
-                "Only a legacy Supabase anon JWT may be used here; service-role and other keys are rejected."
-            }
-        }
-    }
-    return value.replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-        .replace("\r", "\\r")
-        .replace("\n", "\\n")
-        .let { "\"$it\"" }
-}
+val defaultUpdateManifestUrl = "https://raw.githubusercontent.com/itsmebillah/app-internet-control/main/update-manifest.json"
+val configuredUpdateManifestUrl = providers.gradleProperty("appUpdateManifestUrl")
+    .orElse(defaultUpdateManifestUrl)
+    .get()
+    .trim()
+val releaseStoreFile = providers.environmentVariable("APP_RELEASE_STORE_FILE").orNull
+val releaseStorePassword = providers.environmentVariable("APP_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("APP_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("APP_RELEASE_KEY_PASSWORD").orNull
+val releaseSigningConfigured = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+val escapedUpdateManifestUrl = configuredUpdateManifestUrl
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 android {
     namespace = "com.itsmebillah.appinternetcontrol"
@@ -46,16 +29,36 @@ android {
         applicationId = "com.itsmebillah.appinternetcontrol"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
-        buildConfigField("String", "SUPABASE_URL", supabaseBuildConfigValue("supabase.url"))
-        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", supabaseBuildConfigValue("supabase.publishableKey"))
+        versionCode = 2
+        versionName = "1.0.1"
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$escapedUpdateManifestUrl\"")
     }
 
     buildFeatures {
         buildConfig = true
     }
 
+    if (releaseSigningConfigured) {
+        signingConfigs.create("release") {
+            storeFile = file(checkNotNull(releaseStoreFile))
+            storePassword = checkNotNull(releaseStorePassword)
+            keyAlias = checkNotNull(releaseKeyAlias)
+            keyPassword = checkNotNull(releaseKeyPassword)
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("release")
+        }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val buildingReleaseArtifact = allTasks.any { it.name == "assembleRelease" || it.name == "bundleRelease" }
+    if (buildingReleaseArtifact && !releaseSigningConfigured) {
+        throw GradleException("Release builds require APP_RELEASE_STORE_FILE, APP_RELEASE_STORE_PASSWORD, APP_RELEASE_KEY_ALIAS, and APP_RELEASE_KEY_PASSWORD in the process environment.")
+    }
 }
 
 dependencies {

@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -30,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var enableButton: Button
     private lateinit var searchField: EditText
     private lateinit var appRows: LinearLayout
+    private lateinit var iconLoader: PackageIconLoader
     private var installedApps: List<InstalledApp> = emptyList()
     private var receiverRegistered = false
 
@@ -41,10 +43,15 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RemovedFeatureDataCleanup.run(this)
+        iconLoader = PackageIconLoader(this)
         setContentView(createScreen())
         loadInstalledApps()
         renderAppRows()
         renderStatus()
+        UpdateCheckCoordinator.check(this, force = false) { result ->
+            if (!isFinishing && !isDestroyed) showUpdateResult(result)
+        }
     }
 
     override fun onStart() {
@@ -72,6 +79,11 @@ class MainActivity : Activity() {
             receiverRegistered = false
         }
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        if (::iconLoader.isInitialized) iconLoader.close()
+        super.onDestroy()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -131,15 +143,25 @@ class MainActivity : Activity() {
             )
             insets
         }
-        content.addView(TextView(this).apply {
-            text = getString(R.string.app_name)
-            textSize = 24f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        })
-        content.addView(TextView(this).apply {
-            text = getString(R.string.prototype_warning)
-            textSize = 14f
-            setPadding(0, dp(8), 0, dp(12))
+        content.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.app_name)
+                textSize = 24f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(TextView(this@MainActivity).apply {
+                text = getString(R.string.info_icon)
+                textSize = 24f
+                gravity = Gravity.CENTER
+                minimumWidth = dp(48)
+                minimumHeight = dp(48)
+                contentDescription = getString(R.string.vpn_limitation_info_accessibility)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { showVpnLimitationInfo() }
+            })
         })
 
         searchField = EditText(this).apply {
@@ -183,15 +205,15 @@ class MainActivity : Activity() {
 
     private fun showFeatureMenu() {
         val destinations = listOf(
+            getString(R.string.wifi_access_title) to WifiAccessActivity::class.java,
             getString(R.string.manage_schedules) to ScheduleActivity::class.java,
             getString(R.string.temporary_blocks) to TemporaryBlockActivity::class.java,
             getString(R.string.focus_modes) to FocusModeActivity::class.java,
-            getString(R.string.user_profiles) to UserProfileActivity::class.java,
             getString(R.string.history_title) to ChangeHistoryActivity::class.java,
             getString(R.string.speed_title) to SpeedActivity::class.java,
             getString(R.string.usage_title) to UsageHistoryActivity::class.java,
             getString(R.string.analytics_title) to UsageAnalyticsActivity::class.java,
-            "Account and backup" to AccountActivity::class.java,
+            getString(R.string.about_updates_title) to AboutUpdateActivity::class.java,
         )
         AlertDialog.Builder(this)
             .setTitle(R.string.more_features)
@@ -199,6 +221,34 @@ class MainActivity : Activity() {
                 startActivity(Intent(this, destinations[index].second))
             }
             .show()
+    }
+
+    private fun showVpnLimitationInfo() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.vpn_limitation_info_title)
+            .setMessage(R.string.vpn_limitation_info_message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun showUpdateResult(result: UpdateCheckResult) {
+        val available = result as? UpdateCheckResult.Available ?: return
+        UpdatePromptDialog.show(
+            activity = this,
+            available = available,
+            onUpdate = { openReleasePage(available.offer) },
+            onLater = { UpdateCheckCoordinator.rememberLater(this, available.offer) },
+        )
+    }
+
+    private fun openReleasePage(offer: UpdateOffer) {
+        try {
+            UpdateCheckCoordinator.launchUpdate(this, offer)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.update_link_unavailable, Toast.LENGTH_LONG).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(this, R.string.update_link_unavailable, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun loadInstalledApps() {
@@ -230,7 +280,6 @@ class MainActivity : Activity() {
             java.time.Instant.now(),
         )
         val focusPackages = FocusModeStore(this).activeMode()?.packageNames.orEmpty()
-        val activeProfile = UserProfileStore(this).activeProfile()
         val query = if (::searchField.isInitialized) searchField.text.toString().trim() else ""
         val matchingApps = installedApps.filter {
             query.isBlank() || it.displayName.contains(query, ignoreCase = true) ||
@@ -257,12 +306,8 @@ class MainActivity : Activity() {
                 val size = (48 * resources.displayMetrics.density).toInt()
                 layoutParams = LinearLayout.LayoutParams(size, size)
                 contentDescription = getString(R.string.app_icon_accessibility, app.displayName)
-                try {
-                    setImageDrawable(packageManager.getApplicationIcon(app.packageName))
-                } catch (_: PackageManager.NameNotFoundException) {
-                    setImageResource(android.R.drawable.sym_def_app_icon)
-                }
             }
+            iconLoader.bind(app.packageName, icon)
             row.addView(icon)
 
             val labels = LinearLayout(this).apply {
@@ -279,8 +324,6 @@ class MainActivity : Activity() {
                     app.packageName in activeTemporaryPackages -> getString(R.string.app_temporary_block)
                     ScheduleAction.BLOCK in appActions -> getString(R.string.app_schedule_block)
                     ScheduleAction.ALLOW in appActions -> getString(R.string.app_schedule_allow)
-                    app.packageName in activeProfile?.blockedPackageNames.orEmpty() -> getString(R.string.app_profile_block)
-                    app.packageName in activeProfile?.allowedPackageNames.orEmpty() -> getString(R.string.app_profile_allow)
                     app.packageName in focusPackages -> getString(R.string.app_focus_block)
                     else -> getString(if (app.packageName in selection.packageNames) R.string.app_manual_block else R.string.app_manual_allow)
                 }
@@ -365,12 +408,10 @@ class MainActivity : Activity() {
         if (!::statusView.isInitialized || !::enableButton.isInitialized) return
         val selection = selectionStore.read()
         val activeFocusMode = FocusModeStore(this).activeMode()
-        val activeProfile = UserProfileStore(this).activeProfile()
         val effectivePackages = ScheduleCoordinator.effectiveBlockedPackages(this)
         statusView.text = when {
-            AppBlockingVpnService.isVpnActive -> getString(R.string.status_active_unverified)
+            AppBlockingVpnService.isVpnActive -> getString(R.string.status_vpn_active_unverified_short)
             effectivePackages.isNotEmpty() -> getString(R.string.status_effective_not_active)
-            activeProfile != null -> getString(R.string.status_profile_active, activeProfile.name)
             activeFocusMode != null -> getString(R.string.status_focus_active, activeFocusMode.name)
             selection.packageNames.isNotEmpty() -> getString(R.string.status_schedule_allows)
             else -> getString(R.string.status_no_selection)

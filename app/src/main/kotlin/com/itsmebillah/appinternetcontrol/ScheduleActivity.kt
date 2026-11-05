@@ -44,6 +44,9 @@ class ScheduleActivity : Activity() {
     private lateinit var dateButton: Button
     private lateinit var weekdaysContainer: LinearLayout
     private lateinit var appSelectionButton: Button
+    private lateinit var selectedAppsRows: LinearLayout
+    private lateinit var iconLoader: PackageIconLoader
+    private lateinit var appUi: AppUiComponents
     private lateinit var actionGroup: RadioGroup
     private val weekdayBoxes = linkedMapOf<DayOfWeek, CheckBox>()
     private var visibleApps: List<InstalledApp> = emptyList()
@@ -55,9 +58,16 @@ class ScheduleActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        iconLoader = PackageIconLoader(this)
+        appUi = AppUiComponents(this, iconLoader)
         loadVisibleApps()
         setContentView(createScreen())
         renderSchedules()
+    }
+
+    override fun onDestroy() {
+        if (::iconLoader.isInitialized) iconLoader.close()
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -132,6 +142,8 @@ class ScheduleActivity : Activity() {
             setOnClickListener { chooseApps() }
         }
         content.addView(appSelectionButton)
+        selectedAppsRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(selectedAppsRows)
 
         val modeGroup = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
         dateMode = RadioButton(this).apply {
@@ -208,105 +220,10 @@ class ScheduleActivity : Activity() {
     }
 
     private fun chooseApps() {
-        if (visibleApps.isEmpty()) return
-        val pickerState = AppPickerState(visibleApps, selectedPackages)
-        val density = resources.displayMetrics.density
-        fun dp(value: Int) = (value * density).toInt()
-        val dialogContent = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), dp(12))
+        appUi.showPicker(R.string.choose_apps, visibleApps, selectedPackages) { selected ->
+            selectedPackages = selected.toMutableSet()
+            updateAppButton()
         }
-        val search = EditText(this).apply {
-            hint = getString(R.string.search_apps)
-            isSingleLine = true
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-        }
-        val emptyState = TextView(this).apply {
-            textSize = 14f
-            gravity = android.view.Gravity.CENTER
-            setPadding(dp(12), dp(24), dp(12), dp(24))
-        }
-        val list = ListView(this).apply { dividerHeight = dp(1) }
-        val icons = mutableMapOf<String, Drawable>()
-        val adapter = object : BaseAdapter() {
-            var query: String = ""
-            private fun rows() = pickerState.filter(query)
-
-            override fun getCount(): Int = rows().size
-            override fun getItem(position: Int): InstalledApp = rows()[position]
-            override fun getItemId(position: Int): Long = getItem(position).packageName.hashCode().toLong()
-
-            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val app = getItem(position)
-                val row = (convertView as? LinearLayout) ?: LinearLayout(this@ScheduleActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setPadding(dp(8), dp(8), dp(4), dp(8))
-                    addView(ImageView(this@ScheduleActivity), LinearLayout.LayoutParams(dp(40), dp(40)))
-                    addView(TextView(this@ScheduleActivity).apply {
-                        textSize = 15f
-                        setPadding(dp(12), 0, dp(8), 0)
-                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                    addView(CheckBox(this@ScheduleActivity).apply {
-                        isClickable = false
-                        isFocusable = false
-                    })
-                }
-                val icon = row.getChildAt(0) as ImageView
-                val name = row.getChildAt(1) as TextView
-                val check = row.getChildAt(2) as CheckBox
-                icon.setImageDrawable(icons.getOrPut(app.packageName) {
-                    runCatching { packageManager.getApplicationIcon(app.packageName) }
-                        .getOrDefault(getDrawable(android.R.drawable.sym_def_app_icon)!!)
-                })
-                icon.contentDescription = getString(R.string.app_icon_accessibility, app.displayName)
-                name.text = app.displayName
-                check.isChecked = pickerState.isSelected(app.packageName)
-                check.contentDescription = getString(R.string.schedule_app_selection_accessibility, app.displayName)
-                return row
-            }
-
-            fun refresh() {
-                notifyDataSetChanged()
-                val hasRows = count > 0
-                list.visibility = if (hasRows) View.VISIBLE else View.GONE
-                emptyState.visibility = if (hasRows) View.GONE else View.VISIBLE
-                emptyState.text = getString(if (query.isBlank()) R.string.app_picker_empty else R.string.app_picker_no_match)
-            }
-
-            fun toggle(position: Int) {
-                val app = getItem(position)
-                pickerState.setSelected(app.packageName, !pickerState.isSelected(app.packageName))
-            }
-        }
-        list.adapter = adapter
-        list.setOnItemClickListener { _, _, position, _ ->
-            adapter.toggle(position)
-            adapter.notifyDataSetChanged()
-        }
-        search.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                adapter.query = s?.toString().orEmpty()
-                adapter.refresh()
-            }
-            override fun afterTextChanged(s: android.text.Editable?) = Unit
-        })
-        dialogContent.addView(search)
-        dialogContent.addView(emptyState, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        dialogContent.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(360)))
-        adapter.refresh()
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.choose_apps)
-            .setView(dialogContent)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                selectedPackages = pickerState.selectedPackages().toMutableSet()
-                updateAppButton()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-        dialog.show()
     }
 
     private fun chooseDate() {
@@ -350,9 +267,8 @@ class ScheduleActivity : Activity() {
 
     private fun updateAppButton() {
         if (!::appSelectionButton.isInitialized) return
-        val names = visibleApps.filter { it.packageName in selectedPackages }.map { it.displayName }
-        appSelectionButton.text = if (names.isEmpty()) getString(R.string.choose_apps)
-        else names.joinToString().take(70)
+        appSelectionButton.text = getString(R.string.choose_apps)
+        if (::selectedAppsRows.isInitialized) appUi.addAppRows(selectedAppsRows, selectedPackages, visibleApps)
     }
 
     private fun updateModeVisibility() {
@@ -448,13 +364,15 @@ class ScheduleActivity : Activity() {
                 val padding = (8 * resources.displayMetrics.density).toInt()
                 setPadding(0, padding, 0, padding)
             }
-            val names = visibleApps.filter { it.packageName in schedule.packageNames }.joinToString { it.displayName }
             val recurrence = schedule.oneTimeDate?.format(DATE_FORMAT)
                 ?: schedule.weekdays.sortedBy { it.value }.joinToString { it.name.take(3) }
             card.addView(TextView(this).apply {
-                text = "${schedule.name} · ${schedule.action.name.lowercase()} · $recurrence · ${schedule.startTime.format(TIME_FORMAT)}–${schedule.endTime.format(TIME_FORMAT)}\n$names${if (schedule.enabled) "" else " · disabled"}"
+                text = "${schedule.name} · ${schedule.action.name.lowercase()} · $recurrence · ${schedule.startTime.format(TIME_FORMAT)}–${schedule.endTime.format(TIME_FORMAT)}${if (schedule.enabled) "" else " · disabled"}"
                 textSize = 15f
             })
+            val appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            appUi.addAppRows(appRows, schedule.packageNames, visibleApps)
+            card.addView(appRows)
             val buttons = LinearLayout(this@ScheduleActivity).apply { orientation = LinearLayout.HORIZONTAL }
             buttons.addView(Button(this@ScheduleActivity).apply {
                 text = getString(if (schedule.enabled) R.string.disable_schedule else R.string.enable_schedule)

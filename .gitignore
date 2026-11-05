@@ -17,7 +17,12 @@ captures/
 # Signing material and local secrets
 *.jks
 *.keystore
+*.p12
+*.pfx
 keystore.properties
+signing.properties
+release-signing.properties
+RELEASE_SIGNING_RECOVERY.md
 secrets.properties
 supabase.properties
 .env

@@ -31,10 +31,13 @@ class TemporaryBlockActivity : Activity() {
     private val blockStore by lazy { TemporaryBlockStore(this) }
     private lateinit var statusView: TextView
     private lateinit var appButton: Button
+    private lateinit var selectedAppsRows: LinearLayout
     private lateinit var durationField: EditText
     private lateinit var durationUnit: Spinner
     private lateinit var activeBlocksList: LinearLayout
     private var installedApps: List<InstalledApp> = emptyList()
+    private lateinit var iconLoader: PackageIconLoader
+    private lateinit var appUi: AppUiComponents
     private var selectedPackages = mutableSetOf<String>()
     private val handler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
@@ -48,10 +51,18 @@ class TemporaryBlockActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        iconLoader = PackageIconLoader(this)
+        appUi = AppUiComponents(this, iconLoader)
         loadVisibleApps()
         setContentView(createScreen())
         renderBlocks()
         renderStatus()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(refreshRunnable)
+        if (::iconLoader.isInitialized) iconLoader.close()
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -127,6 +138,8 @@ class TemporaryBlockActivity : Activity() {
             setOnClickListener { chooseApps() }
         }
         content.addView(appButton)
+        selectedAppsRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(selectedAppsRows)
         durationField = EditText(this).apply {
             hint = getString(R.string.temporary_duration)
             inputType = InputType.TYPE_CLASS_NUMBER
@@ -166,23 +179,15 @@ class TemporaryBlockActivity : Activity() {
     }
 
     private fun chooseApps() {
-        if (installedApps.isEmpty()) return
-        val labels = installedApps.map { "${it.displayName} (${it.packageName})" }.toTypedArray()
-        val checked = BooleanArray(installedApps.size) { installedApps[it].packageName in selectedPackages }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.temporary_choose_apps)
-            .setMultiChoiceItems(labels, checked) { _, index, selected ->
-                val packageName = installedApps[index].packageName
-                if (selected) selectedPackages.add(packageName) else selectedPackages.remove(packageName)
-            }
-            .setPositiveButton(android.R.string.ok) { _, _ -> updateAppButton() }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        appUi.showPicker(R.string.temporary_choose_apps, installedApps, selectedPackages) { selected ->
+            selectedPackages = selected.toMutableSet()
+            updateAppButton()
+        }
     }
 
     private fun updateAppButton() {
-        val names = installedApps.filter { it.packageName in selectedPackages }.map { it.displayName }
-        appButton.text = if (names.isEmpty()) getString(R.string.choose_apps) else names.joinToString().take(70)
+        appButton.text = getString(R.string.choose_apps)
+        if (::selectedAppsRows.isInitialized) appUi.addAppRows(selectedAppsRows, selectedPackages, installedApps)
     }
 
     private fun createTemporaryBlock() {
@@ -242,15 +247,15 @@ class TemporaryBlockActivity : Activity() {
             return
         }
         blocks.forEach { block ->
-            val names = block.packageNames.map { packageName ->
-                installedApps.firstOrNull { it.packageName == packageName }?.displayName ?: packageName
-            }.joinToString()
             val remaining = Duration.between(now, block.expiresAt).coerceAtLeast(Duration.ZERO)
             val expiry = block.expiresAt.atZone(ZoneId.systemDefault()).format(EXPIRY_FORMAT)
             val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             row.addView(TextView(this).apply {
-                text = getString(R.string.temporary_block_card, names, expiry, formatRemaining(remaining))
+                text = getString(R.string.temporary_block_card_time, expiry, formatRemaining(remaining))
             })
+            val appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            appUi.addAppRows(appRows, block.packageNames, installedApps)
+            row.addView(appRows)
             row.addView(Button(this).apply {
                 text = getString(R.string.temporary_cancel)
                 setOnClickListener { cancelBlock(block) }

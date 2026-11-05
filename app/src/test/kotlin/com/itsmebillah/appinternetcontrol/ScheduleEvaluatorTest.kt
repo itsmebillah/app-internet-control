@@ -40,6 +40,14 @@ class ScheduleEvaluatorTest {
         assertTrue(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atTime(9, 58).atZone(zone).toInstant(), zone))
         assertFalse(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atTime(9, 59).atZone(zone).toInstant(), zone))
         assertFalse(ScheduleEvaluator.isActive(schedule, monday.plusDays(1).atTime(10, 0).atZone(zone).toInstant(), zone))
+        assertEquals(
+            monday.plusDays(1).atTime(9, 59).atZone(zone).toInstant(),
+            ScheduleEvaluator.activeEnd(schedule, monday.plusDays(1).atTime(9, 58).atZone(zone).toInstant(), zone),
+        )
+        assertEquals(
+            null,
+            ScheduleEvaluator.activeEnd(schedule, monday.plusDays(1).atTime(9, 59).atZone(zone).toInstant(), zone),
+        )
     }
 
     @Test
@@ -94,6 +102,23 @@ class ScheduleEvaluatorTest {
                 now = monday.plusDays(1).atTime(11, 0).atZone(zone).toInstant(),
                 zone = zone,
             ),
+        )
+    }
+
+    @Test
+    fun processRestartReconciliationUsesPersistedTimeRulesRatherThanPreviousActiveState() {
+        val schedule = recurring(DayOfWeek.MONDAY, LocalTime.of(19, 0), LocalTime.of(9, 59))
+        val afterMissedAlarm = monday.plusDays(1).atTime(10, 0).atZone(zone).toInstant()
+
+        // Re-running the pure resolver after a process restart produces the same result; no in-memory
+        // "active" flag or alarm-delivery history is needed to expire this schedule.
+        assertEquals(
+            emptySet<String>(),
+            ScheduleEvaluator.effectiveBlockedPackages(emptySet(), listOf(schedule), afterMissedAlarm, zone),
+        )
+        assertEquals(
+            monday.plusDays(7).atTime(19, 0).atZone(zone).toInstant(),
+            ScheduleEvaluator.nextBoundary(listOf(schedule), afterMissedAlarm, zone),
         )
     }
 

@@ -34,22 +34,22 @@ object EffectiveBlockResolver {
     fun resolve(
         manualBlockedPackages: Set<String>,
         activeFocusMode: FocusMode? = null,
-        activeProfile: UserProfile? = null,
         schedules: List<BlockSchedule>,
         temporaryBlocks: List<TemporaryBlock>,
+        wifiAccessRules: List<WifiAccessRule> = emptyList(),
+        currentWifiNetwork: WifiNetworkIdentity? = null,
         now: Instant,
         zone: ZoneId,
     ): Set<String> {
-        val lowerPriorityBlocks = (manualBlockedPackages + activeFocusMode?.packageNames.orEmpty()).toMutableSet()
-        activeProfile?.let { profile ->
-            lowerPriorityBlocks.addAll(profile.blockedPackageNames)
-            lowerPriorityBlocks.removeAll(profile.allowedPackageNames)
-        }
-        return ScheduleEvaluator.effectiveBlockedPackages(
+        val lowerPriorityBlocks = manualBlockedPackages + activeFocusMode?.packageNames.orEmpty()
+        val scheduledAndLowerPriority = ScheduleEvaluator.effectiveBlockedPackages(
             manualBlockedPackages = lowerPriorityBlocks,
             schedules = schedules,
             now = now,
             zone = zone,
-        ) + TemporaryBlockEvaluator.activePackageNames(temporaryBlocks, now)
+        )
+        return scheduledAndLowerPriority +
+            TemporaryBlockEvaluator.activePackageNames(temporaryBlocks, now) +
+            WifiAccessRuleEvaluator.blockedPackages(wifiAccessRules, currentWifiNetwork)
     }
 }

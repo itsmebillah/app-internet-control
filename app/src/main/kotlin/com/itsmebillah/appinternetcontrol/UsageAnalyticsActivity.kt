@@ -19,9 +19,13 @@ class UsageAnalyticsActivity : Activity() {
     private lateinit var trendsList: LinearLayout
     private lateinit var periodSpinner: Spinner
     private var records: List<UsageRecord> = emptyList()
+    private lateinit var iconLoader: PackageIconLoader
+    private lateinit var appUi: AppUiComponents
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        iconLoader = PackageIconLoader(this)
+        appUi = AppUiComponents(this, iconLoader)
         database = UsageHistoryDatabase(this)
         setContentView(createScreen())
         render()
@@ -34,6 +38,7 @@ class UsageAnalyticsActivity : Activity() {
 
     override fun onDestroy() {
         database.close()
+        if (::iconLoader.isInitialized) iconLoader.close()
         super.onDestroy()
     }
 
@@ -131,19 +136,22 @@ class UsageAnalyticsActivity : Activity() {
         }
         val maxBytes = topApps.maxOf { it.totalBytes }.coerceAtLeast(1)
         topApps.forEachIndexed { index, appUsage ->
-            val name = appUsage.packageNames.joinToString(" / ", transform = ::displayName)
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(0, dp(8), 0, dp(8))
             }
+            val appRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            appUi.addAppRows(appRows, appUsage.packageNames, emptyList())
+            row.addView(appRows)
             row.addView(TextView(this).apply {
-                text = getString(R.string.analytics_app_total, index + 1, name, UsageBytesFormatter.format(appUsage.totalBytes))
+                text = getString(R.string.analytics_app_total, index + 1, UsageBytesFormatter.format(appUsage.totalBytes))
                 textSize = 14f
             })
             val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
                 max = BAR_MAX
                 progress = (appUsage.totalBytes.toDouble() / maxBytes * BAR_MAX).toInt().coerceIn(0, BAR_MAX)
-                contentDescription = getString(R.string.analytics_bar_accessibility, name)
+                val appNames = appUsage.packageNames.map { appUi.installedApp(it).displayName }.joinToString()
+                contentDescription = getString(R.string.analytics_bar_accessibility, appNames)
             }
             row.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(12)))
             topAppsList.addView(row)
@@ -177,10 +185,6 @@ class UsageAnalyticsActivity : Activity() {
             trendsList.addView(row)
         }
     }
-
-    private fun displayName(packageName: String): String = runCatching {
-        packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString()
-    }.getOrDefault(packageName)
 
     private fun formatDate(millis: Long): String = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
         .format(java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()))

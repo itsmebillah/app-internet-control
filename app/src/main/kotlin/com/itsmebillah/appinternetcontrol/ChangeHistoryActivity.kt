@@ -11,8 +11,13 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class ChangeHistoryActivity : Activity() {
+    private lateinit var iconLoader: PackageIconLoader
+    private lateinit var appUi: AppUiComponents
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        iconLoader = PackageIconLoader(this)
+        appUi = AppUiComponents(this, iconLoader)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (20 * resources.displayMetrics.density).toInt()
@@ -53,8 +58,8 @@ class ChangeHistoryActivity : Activity() {
                     ChangeSource.MANUAL -> R.string.history_source_manual
                     ChangeSource.TIMER -> R.string.history_source_timer
                     ChangeSource.SCHEDULE -> R.string.history_source_schedule
-                    ChangeSource.PROFILE -> R.string.history_source_profile
                     ChangeSource.FOCUS -> R.string.history_source_focus
+                    ChangeSource.OTHER -> R.string.history_source_other
                 })
                 val outcome = getString(when (event.outcome) {
                     EnforcementOutcome.PENDING -> R.string.history_outcome_pending
@@ -63,8 +68,9 @@ class ChangeHistoryActivity : Activity() {
                     EnforcementOutcome.OVERRIDDEN -> R.string.history_outcome_overridden
                 })
                 val timestamp = HISTORY_FORMAT.format(event.timestamp.atZone(ZoneId.systemDefault()))
+                rows.addView(appUi.appRow(appUi.installedApp(event.packageName)))
                 rows.addView(TextView(this).apply {
-                    text = getString(R.string.history_entry, timestamp, action, event.packageName, source, outcome)
+                    text = getString(R.string.history_entry, timestamp, action, source, outcome)
                     textSize = 14f
                     setPadding(0, dp(12), 0, dp(12))
                 })
@@ -75,6 +81,11 @@ class ChangeHistoryActivity : Activity() {
         val scroll = ScrollView(this).apply { addView(rows) }
         content.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(content)
+    }
+
+    override fun onDestroy() {
+        if (::iconLoader.isInitialized) iconLoader.close()
+        super.onDestroy()
     }
 
     companion object {

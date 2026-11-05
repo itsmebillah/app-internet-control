@@ -11,18 +11,18 @@ class ChangeHistoryTest {
     @Test
     fun recordsBlockAndAllowTransitionsWithTheirControllingSource() {
         val before = mapOf("com.example.app" to EffectiveDecision(false, ChangeSource.MANUAL))
-        val blocked = mapOf("com.example.app" to EffectiveDecision(true, ChangeSource.PROFILE))
+        val blocked = mapOf("com.example.app" to EffectiveDecision(true, ChangeSource.SCHEDULE))
 
         val block = ChangeHistoryReducer.transitions(before, blocked, timestamp) { EnforcementOutcome.PENDING }.single()
         assertTrue(block.blocked)
-        assertEquals(ChangeSource.PROFILE, block.source)
+        assertEquals(ChangeSource.SCHEDULE, block.source)
         assertEquals(EnforcementOutcome.PENDING, block.outcome)
 
         val allow = ChangeHistoryReducer.transitions(blocked, before, timestamp.plusSeconds(1)) {
             EnforcementOutcome.NOT_ACTIVE
         }.single()
         assertEquals(false, allow.blocked)
-        assertEquals(ChangeSource.PROFILE, allow.source)
+        assertEquals(ChangeSource.SCHEDULE, allow.source)
     }
 
     @Test
@@ -41,5 +41,12 @@ class ChangeHistoryTest {
         assertTrue(ChangeHistoryReducer.transitions(emptyMap(), current, timestamp) {
             EnforcementOutcome.PENDING
         }.isEmpty())
+    }
+
+    @Test
+    fun historyFromAnOlderUnknownRuleSourceRemainsReadable() {
+        val legacy = """[{"id":"old","at":1793611800000,"package":"com.example.app","blocked":true,"source":"OLD","outcome":"PENDING"}]"""
+
+        assertEquals(ChangeSource.OTHER, ChangeHistoryStore.decodeEvents(legacy).single().source)
     }
 }
